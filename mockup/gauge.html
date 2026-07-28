@@ -107,16 +107,15 @@
     // Top chrome for hard-button labels + log LED; bottom for swipe dots.
     const TOP_CHROME = 60;
     const BOTTOM_DOTS = 28;
-    // Dial 25% shorter than full content band; outer square → equal mid thickness.
-    const DIAL_SCALE = 0.75;
-    // Inner aperture large enough for digits; type is sized FROM half, not face.
-    const INNER_SCALE = 0.72;
+    // Band thickness as fraction of the *shorter* content half-span (equal mid-side
+    // width and mid-top height). Outer fills full width + full content height.
+    const BAND_FRAC = 0.14;
     const PAGE_COUNT = 3;
-    // Type as fractions of dial *half* (not full face — face-relative overflowed).
-    const AFR_DIGIT_OF_HALF = 0.58;   // ~15% above prior dial-relative baseline
-    const TICK_OF_HALF = 0.16;        // scale ticks
-    const CAPTION_OF_HALF = 0.12;     // AIR/FUEL RATIO
-    const HARD_LABEL_OF_CHROME = 0.42; // MODE/SEL vs top chrome height
+    // Type from min(halfW, halfH) so digits stay inside the aperture.
+    const AFR_DIGIT_OF_HALF = 0.58;
+    const TICK_OF_HALF = 0.16;
+    const CAPTION_OF_HALF = 0.12;
+    const HARD_LABEL_OF_CHROME = 0.42;
 
     function clampAfr(afr) {
       return Math.min(AFR_MAX, Math.max(AFR_MIN, afr));
@@ -193,27 +192,32 @@
     let lastState = mapAfr(AFR_STOICH);
 
     /**
-     * Landscape layout. Dial sits in the content band under tall top chrome
-     * (hard-button labels) and above bottom swipe dots.
+     * Landscape layout. Dial fills the content band: full panel width and all
+     * height between top chrome (MODE/LED/SEL) and bottom swipe dots.
      */
     function layout(w, h) {
       const contentTop = TOP_CHROME;
       const contentBot = h - BOTTOM_DOTS;
       const contentH = contentBot - contentTop;
-      // 25% shorter than packing the full content band.
-      const half = Math.min(w / 2, contentH / 2) * DIAL_SCALE;
       const cx = w / 2;
-      // Center of remaining content band (gauge shifted down under chrome).
       const cy = contentTop + contentH / 2;
-      // Outer square half-side == half → mid-side thickness == mid-top thickness.
-      const outerHalf = half;
-      const innerHalf = half * INNER_SCALE;
-      const innerCorner = innerHalf * 0.28;
+      // Outer rect: flush L/R of face, T/B of content band.
+      const outerHalfW = w / 2;
+      const outerHalfH = contentH / 2;
+      // Constant band thickness (mid-side width == mid-top height).
+      const band = Math.min(outerHalfW, outerHalfH) * BAND_FRAC;
+      const innerHalfW = Math.max(8, outerHalfW - band);
+      const innerHalfH = Math.max(8, outerHalfH - band);
+      const innerCorner = Math.min(innerHalfW, innerHalfH) * 0.22;
+      // Ref half for type (shorter aperture axis).
+      const half = Math.min(innerHalfW, innerHalfH);
       return {
         w, h,
         contentTop, contentBot, contentH,
-        half, outerHalf, cx, cy,
-        innerHalf, innerCorner,
+        half, cx, cy,
+        outerHalfW, outerHalfH,
+        innerHalfW, innerHalfH, innerCorner,
+        band,
         modeLabel: { x: 22, y: TOP_CHROME / 2 },
         selLabel: { x: w - 22, y: TOP_CHROME / 2 },
         logLed: { x: w / 2, y: TOP_CHROME / 2, r: 9 },
@@ -221,48 +225,54 @@
       };
     }
 
-    function radiusToRoundedSquare(ux, uy, half, corner) {
+    /** Ray length to axis-aligned rounded rect (halfW × halfH, corner radius). */
+    function radiusToRoundedRect(ux, uy, halfW, halfH, corner) {
       const ax = Math.abs(ux);
       const ay = Math.abs(uy);
-      const flat = half - corner;
-      if (flat <= 0) return half;
+      const flatW = halfW - corner;
+      const flatH = halfH - corner;
+      if (flatW <= 0 || flatH <= 0) {
+        // Degenerate: ellipse-ish fallback
+        if (ax < 1e-12) return halfH;
+        if (ay < 1e-12) return halfW;
+        return 1 / Math.sqrt((ax * ax) / (halfW * halfW) + (ay * ay) / (halfH * halfH));
+      }
       if (ax > 1e-12) {
-        const t = half / ax;
-        if (Math.abs(t * uy) <= flat + 1e-9) return t;
+        const t = halfW / ax;
+        if (Math.abs(t * uy) <= flatH + 1e-9) return t;
       }
       if (ay > 1e-12) {
-        const t = half / ay;
-        if (Math.abs(t * ux) <= flat + 1e-9) return t;
+        const t = halfH / ay;
+        if (Math.abs(t * ux) <= flatW + 1e-9) return t;
       }
-      const ccx = Math.sign(ux || 1) * flat;
-      const ccy = Math.sign(uy || 1) * flat;
+      const ccx = Math.sign(ux || 1) * flatW;
+      const ccy = Math.sign(uy || 1) * flatH;
       const b = ux * ccx + uy * ccy;
       const c0 = ccx * ccx + ccy * ccy - corner * corner;
       const disc = b * b - c0;
-      if (disc < 0) return half;
+      if (disc < 0) return Math.min(halfW, halfH);
       const t2 = b + Math.sqrt(disc);
       if (t2 > 1e-9) return t2;
-      return half;
+      return Math.min(halfW, halfH);
     }
 
-    /**
-     * Outer: square of half-side outerHalf (same on mid-sides and mid-top).
-     * Corners still reach farther so radial thickness is equal mid-side/mid-top.
-     */
+    /** Outer: sharp rect filling content band (full width, full available height). */
     function outerRadiusAt(a, L) {
       const dx = Math.cos(a);
       const dy = -Math.sin(a);
-      const oh = L.outerHalf;
       let rMax = Infinity;
-      if (dx > 1e-9) rMax = Math.min(rMax, oh / dx);
-      if (dx < -1e-9) rMax = Math.min(rMax, oh / -dx);
-      if (dy > 1e-9) rMax = Math.min(rMax, oh / dy);
-      if (dy < -1e-9) rMax = Math.min(rMax, oh / -dy);
-      return Math.max(L.innerHalf + 4, rMax - 0.5);
+      if (dx > 1e-9) rMax = Math.min(rMax, L.outerHalfW / dx);
+      if (dx < -1e-9) rMax = Math.min(rMax, L.outerHalfW / -dx);
+      if (dy > 1e-9) rMax = Math.min(rMax, L.outerHalfH / dy);
+      if (dy < -1e-9) rMax = Math.min(rMax, L.outerHalfH / -dy);
+      return Math.max(L.band + 2, rMax - 0.5);
     }
 
     function innerRadiusAt(a, L) {
-      return radiusToRoundedSquare(Math.cos(a), -Math.sin(a), L.innerHalf, L.innerCorner);
+      return radiusToRoundedRect(
+        Math.cos(a), -Math.sin(a),
+        L.innerHalfW, L.innerHalfH, L.innerCorner
+      );
     }
 
     function segmentFill(i, band, lit) {
@@ -396,10 +406,10 @@
       }
 
       const readout = state.valid ? state.display.toFixed(1) : "--.-";
-      // Cap digit size so "20.0" fits inside the rounded-square hole.
+      // Cap digit size so "20.0" fits inside the rounded aperture.
       const digitPx = Math.min(
         Math.round(half * AFR_DIGIT_OF_HALF),
-        Math.round(L.innerHalf * 0.95)
+        Math.round(Math.min(L.innerHalfW, L.innerHalfH) * 0.85)
       );
       const digitY = cy - digitPx * 0.08;
       ctx.fillStyle = "#ff2a2a";

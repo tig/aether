@@ -31,10 +31,10 @@ FACE_W = 448
 FACE_H = 368
 TOP_CHROME = 60
 BOTTOM_DOTS = 28
-DIAL_SCALE = 0.75  # graph 25% shorter
-INNER_SCALE = 0.72
+# Constant band thickness vs shorter content half (mid-side width == mid-top height).
+BAND_FRAC = 0.14
 PAGE_COUNT = 3
-# Type as fractions of dial *half* (face-relative sizing caused overflow).
+# Type as fractions of min(inner half-axes).
 AFR_DIGIT_OF_HALF = 0.58
 TICK_OF_HALF = 0.16
 CAPTION_OF_HALF = 0.12
@@ -64,22 +64,30 @@ def _layout(w: int = FACE_W, h: int = FACE_H) -> dict:
     content_top = TOP_CHROME
     content_bot = h - BOTTOM_DOTS
     content_h = content_bot - content_top
-    half = min(w / 2.0, content_h / 2.0) * DIAL_SCALE
     cx = w / 2.0
     cy = content_top + content_h / 2.0
-    outer_half = half  # mid-side thickness == mid-top thickness
-    inner_half = half * INNER_SCALE
+    # Outer: full panel width, full height under chrome / above dots.
+    outer_half_w = w / 2.0
+    outer_half_h = content_h / 2.0
+    band = min(outer_half_w, outer_half_h) * BAND_FRAC
+    inner_half_w = max(8.0, outer_half_w - band)
+    inner_half_h = max(8.0, outer_half_h - band)
+    inner_corner = min(inner_half_w, inner_half_h) * 0.22
+    half = min(inner_half_w, inner_half_h)
     return {
         "w": w,
         "h": h,
         "content_top": float(content_top),
         "content_bot": float(content_bot),
         "half": half,
-        "outer_half": outer_half,
         "cx": cx,
         "cy": cy,
-        "inner_half": inner_half,
-        "inner_corner": inner_half * 0.28,
+        "outer_half_w": outer_half_w,
+        "outer_half_h": outer_half_h,
+        "inner_half_w": inner_half_w,
+        "inner_half_h": inner_half_h,
+        "inner_corner": inner_corner,
+        "band": band,
         "mode_x": 22.0,
         "sel_x": w - 22.0,
         "chrome_y": TOP_CHROME / 2.0,
@@ -88,52 +96,62 @@ def _layout(w: int = FACE_W, h: int = FACE_H) -> dict:
     }
 
 
-def _radius_to_rounded_square(ux: float, uy: float, half: float, corner: float) -> float:
+def _radius_to_rounded_rect(
+    ux: float, uy: float, half_w: float, half_h: float, corner: float
+) -> float:
     ax, ay = abs(ux), abs(uy)
-    flat = half - corner
-    if flat <= 0:
-        return half
+    flat_w = half_w - corner
+    flat_h = half_h - corner
+    if flat_w <= 0 or flat_h <= 0:
+        if ax < 1e-12:
+            return half_h
+        if ay < 1e-12:
+            return half_w
+        return 1.0 / math.sqrt((ax * ax) / (half_w * half_w) + (ay * ay) / (half_h * half_h))
     if ax > 1e-12:
-        t = half / ax
-        if abs(t * uy) <= flat + 1e-9:
+        t = half_w / ax
+        if abs(t * uy) <= flat_h + 1e-9:
             return t
     if ay > 1e-12:
-        t = half / ay
-        if abs(t * ux) <= flat + 1e-9:
+        t = half_h / ay
+        if abs(t * ux) <= flat_w + 1e-9:
             return t
-    ccx = (1.0 if ux >= 0 else -1.0) * flat
-    ccy = (1.0 if uy >= 0 else -1.0) * flat
+    ccx = (1.0 if ux >= 0 else -1.0) * flat_w
+    ccy = (1.0 if uy >= 0 else -1.0) * flat_h
     b = ux * ccx + uy * ccy
     c0 = ccx * ccx + ccy * ccy - corner * corner
     disc = b * b - c0
     if disc < 0:
-        return half
+        return min(half_w, half_h)
     t2 = b + math.sqrt(disc)
     if t2 > 1e-9:
         return t2
-    return half
+    return min(half_w, half_h)
 
 
 def _outer_radius_at(a: float, L: dict) -> float:
-    """Square outer envelope: equal mid-side and mid-top radial thickness."""
+    """Rect outer: full content width × height (constant mid band thickness)."""
     dx = math.cos(a)
     dy = -math.sin(a)
-    oh = L["outer_half"]
     r_max = float("inf")
     if dx > 1e-9:
-        r_max = min(r_max, oh / dx)
+        r_max = min(r_max, L["outer_half_w"] / dx)
     if dx < -1e-9:
-        r_max = min(r_max, oh / -dx)
+        r_max = min(r_max, L["outer_half_w"] / -dx)
     if dy > 1e-9:
-        r_max = min(r_max, oh / dy)
+        r_max = min(r_max, L["outer_half_h"] / dy)
     if dy < -1e-9:
-        r_max = min(r_max, oh / -dy)
-    return max(L["inner_half"] + 4.0, r_max - 0.5)
+        r_max = min(r_max, L["outer_half_h"] / -dy)
+    return max(L["band"] + 2.0, r_max - 0.5)
 
 
 def _inner_radius_at(a: float, L: dict) -> float:
-    return _radius_to_rounded_square(
-        math.cos(a), -math.sin(a), L["inner_half"], L["inner_corner"]
+    return _radius_to_rounded_rect(
+        math.cos(a),
+        -math.sin(a),
+        L["inner_half_w"],
+        L["inner_half_h"],
+        L["inner_corner"],
     )
 
 
@@ -234,7 +252,10 @@ def render_gauge_svg(
                 f'text-anchor="middle" dominant-baseline="middle">{label}</text>'
             )
 
-        digit_px = min(round(half * AFR_DIGIT_OF_HALF), round(L["inner_half"] * 0.95))
+        digit_px = min(
+            round(half * AFR_DIGIT_OF_HALF),
+            round(min(L["inner_half_w"], L["inner_half_h"]) * 0.85),
+        )
         digit_y = cy - digit_px * 0.08
         parts.append(
             f'<text x="{cx}" y="{digit_y:.1f}" fill="#ff2a2a" '
