@@ -1,6 +1,6 @@
 # Aether ECU map (tune table) read/write
 
-**Rev 0.3 · July 2026**  
+**Rev 0.5 · July 2026**  
 **Status:** Contract / decision record — **not** an implementation.  
 **Issue:** [#4](https://github.com/tig/aether/issues/4)  
 **Related:** [#1](https://github.com/tig/aether/issues/1) (wireless host / LLM), [#2](https://github.com/tig/aether/issues/2) (event marks), [#3](https://github.com/tig/aether/issues/3) (logging), [#5](https://github.com/tig/aether/issues/5) (serial transport / session)  
