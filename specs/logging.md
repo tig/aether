@@ -175,11 +175,13 @@ A valid Aether P0 log **must** include:
 | Concern | Contract |
 |---------|----------|
 | **Session epoch** | MLG header Unix timestamp (32-bit UTC seconds) when RTC/NTP/host time known; **0** if unknown (allowed by MLG). |
-| **Sample time** | Each field data block: **16-bit timestamp at 10 µs/bit** (MLG), plus monotonic device time in the `Time` channel (seconds, float or scaled int). |
-| **Wrap** | 16-bit × 10 µs wraps every **0.65536 s**. Implementation **must** maintain a full-width monotonic clock (use `int64_t` ms domain clock — see plate HAL notes) and reconstruct absolute sample time; do not treat the 16-bit field alone as session time. |
+| **Internal clock** | Writer **must** keep a full-width monotonic clock (`int64_t` ms domain — see plate HAL notes) for all channel alignment and the `Time` channel (session-relative seconds, float or scaled int). |
+| **MLG u16 field meaning** | Per **MLVLG v2**, each data/marker block’s 16-bit timestamp is the **interval since the previous block**, in units of **10 µs/tick** — **not** the low 16 bits of an absolute clock and **not** a free-running counter that “wraps.” MegaLogViewer **accumulates** these deltas to place samples. |
+| **Encode rule (must)** | `delta_ticks = (t_now − t_prev) / 10µs` (integer), where `t_*` are from the full-width monotonic clock. Emit that value in the u16 field. First block after the header: use **0** or the interval from session start — document choice; MLV still builds a timeline by accumulation. |
+| **Overflow (must)** | Max representable interval is **65535 × 10 µs ≈ 0.65535 s**. If the real gap is larger (pause, sleep, long marker gap), the writer **must not** store `gap mod 65536`. Instead **split**: emit one or more intermediate field or marker blocks (e.g. hold last sample, or a `NOTE gap` marker) so each on-wire delta ≤ 65535 ticks, **or** end the session and start a new `.mlg`. Silent modulo is a **spec violation** (causes MLV timeline jumps). |
 | **Clock domain** | Device monotonic for alignment of channels; wall clock only for file metadata and host correlation. |
 | **Sync across sources** | All channels in one record share one sample instant (nearest-sample or interpolated — **document per input** in inputs spec; default nearest). |
-| **Dropped samples** | Prefer gap in `Time` over fake flat-hold; optional `AeDrop` counter channel. |
+| **Dropped samples** | Prefer gap in `Time` over fake flat-hold; optional `AeDrop` counter channel; still encode honest MLG deltas (including split blocks for long gaps). |
 
 ---
 
@@ -426,8 +428,8 @@ Implementers **must** follow the published MLVLG v2 layout. Critical constants:
 | Version | `0x0002` |
 | Endianness | **Big-endian** |
 | Logger field size (v2) | **89 bytes** per field (includes 34-byte category) |
-| Data block type 0 | Field record: type, counter, **u16 time (10 µs)**, packed raw fields, **u8 CRC** (sum of raw field bytes) |
-| Data block type 1 | Marker: type, counter, u16 time, **50-byte** message |
+| Data block type 0 | Field record: type, counter, **u16 inter-record delta (10 µs/tick)**, packed raw fields, **u8 CRC** (sum of raw field bytes) |
+| Data block type 1 | Marker: type, counter, **u16 inter-record delta (10 µs/tick)**, **50-byte** message |
 | Display formula | `(raw + transform) * scale` |
 
 **Bitfields:** supported by MLG; Aether **may** defer bitfield channels to P1 if unused.
