@@ -105,19 +105,18 @@
     const BAND_AMBER_LT = 15.8;
 
     // Top chrome for hard-button labels + log LED; bottom for swipe dots.
-    // Larger chrome so MODE/SEL can be 50% bigger after dial shrinks 25%.
     const TOP_CHROME = 60;
     const BOTTOM_DOTS = 28;
-    // Dial 25% shorter than full content band; outer is a square of that half
-    // so mid-side band width == mid-top band height (equal radial thickness).
+    // Dial 25% shorter than full content band; outer square → equal mid thickness.
     const DIAL_SCALE = 0.75;
-    const INNER_SCALE = 0.7795;
+    // Inner aperture large enough for digits; type is sized FROM half, not face.
+    const INNER_SCALE = 0.72;
     const PAGE_COUNT = 3;
-    // Type scales (device px)
-    const HARD_LABEL_SCALE = 0.038 * 1.5;   // +50%
-    const AFR_DIGIT_SCALE = 0.22 * 1.15;    // +15%
-    const TICK_LABEL_SCALE = 0.055 * 1.25;  // +25%
-    const CAPTION_SCALE = 0.038 * 1.25;     // +25%
+    // Type as fractions of dial *half* (not full face — face-relative overflowed).
+    const AFR_DIGIT_OF_HALF = 0.58;   // ~15% above prior dial-relative baseline
+    const TICK_OF_HALF = 0.16;        // scale ticks
+    const CAPTION_OF_HALF = 0.12;     // AIR/FUEL RATIO
+    const HARD_LABEL_OF_CHROME = 0.42; // MODE/SEL vs top chrome height
 
     function clampAfr(afr) {
       return Math.min(AFR_MAX, Math.max(AFR_MIN, afr));
@@ -176,7 +175,8 @@
       amber: "#f59e0b",
       red: "#ef4444",
       invalid: "#444",
-      dim: "#1a1a1e",
+      // Unlit segments must stay visible on black (near-black dim = "missing ring")
+      dim: "#2e2e36",
       stoichHint: "#2a4a32",
       stoichHintEdge: "#3d6b48",
     };
@@ -276,7 +276,7 @@
       const y = L.modeLabel.y;
       ctx.textBaseline = "middle";
       ctx.fillStyle = "#e0e0e6";
-      const px = Math.max(18, Math.round(L.w * HARD_LABEL_SCALE));
+      const px = Math.max(16, Math.round(TOP_CHROME * HARD_LABEL_OF_CHROME));
       ctx.font = `700 ${px}px Segoe UI, system-ui, sans-serif`;
       ctx.textAlign = "left";
       ctx.fillText("MODE", L.modeLabel.x, y);
@@ -377,8 +377,9 @@
         }
       }
 
-      const ref = Math.min(L.w, L.h);
-      const labelPx = Math.max(18, Math.round(ref * TICK_LABEL_SCALE));
+      // Type sized from dial half so it cannot overflow the aperture.
+      const half = L.half;
+      const labelPx = Math.max(11, Math.round(half * TICK_OF_HALF));
       ctx.fillStyle = "#d0d0d8";
       ctx.font = `600 ${labelPx}px Segoe UI, system-ui, sans-serif`;
       ctx.textAlign = "center";
@@ -386,28 +387,35 @@
       for (const mark of [8, 11, 13, 15, 17, 20]) {
         const t = (mark - AFR_MIN) / (AFR_MAX - AFR_MIN);
         const a = (startDeg - t * sweepDeg) * Math.PI / 180;
-        const r = Math.max(8, innerRadiusAt(a, L) - labelPx * 0.72);
+        // Sit in the ring band (between inner and outer), not in the digit hole.
+        const ri = innerRadiusAt(a, L);
+        const ro = outerRadiusAt(a, L);
+        const r = (ri + ro) / 2;
         const [x, y] = pt(r, a);
         ctx.fillText(String(mark), x, y);
       }
 
       const readout = state.valid ? state.display.toFixed(1) : "--.-";
-      const digitPx = Math.round(ref * AFR_DIGIT_SCALE);
-      const digitY = cy - L.innerHalf * 0.06;
+      // Cap digit size so "20.0" fits inside the rounded-square hole.
+      const digitPx = Math.min(
+        Math.round(half * AFR_DIGIT_OF_HALF),
+        Math.round(L.innerHalf * 0.95)
+      );
+      const digitY = cy - digitPx * 0.08;
       ctx.fillStyle = "#ff2a2a";
       ctx.font = `bold ${digitPx}px Consolas, ui-monospace, monospace`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.shadowColor = "rgba(255,40,40,0.4)";
-      ctx.shadowBlur = 12;
+      ctx.shadowColor = "rgba(255,40,40,0.35)";
+      ctx.shadowBlur = 8;
       ctx.fillText(readout, cx, digitY);
       ctx.shadowBlur = 0;
 
-      const captionPx = Math.max(13, Math.round(ref * CAPTION_SCALE));
+      const captionPx = Math.max(9, Math.round(half * CAPTION_OF_HALF));
       ctx.fillStyle = "#c0c0c8";
       ctx.font = `600 ${captionPx}px Segoe UI, system-ui, sans-serif`;
       ctx.textBaseline = "top";
-      ctx.fillText("AIR/FUEL RATIO", cx, digitY + digitPx * 0.48);
+      ctx.fillText("AIR/FUEL RATIO", cx, digitY + digitPx * 0.52);
     }
 
     function drawPlaceholderPage(ctx, L, title) {

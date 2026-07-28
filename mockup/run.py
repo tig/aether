@@ -29,15 +29,16 @@ from .afr_gauge import (
 # are on the TOP edge → logical UI size 448×368.
 FACE_W = 448
 FACE_H = 368
-TOP_CHROME = 60  # room for +50% MODE/SEL labels
+TOP_CHROME = 60
 BOTTOM_DOTS = 28
 DIAL_SCALE = 0.75  # graph 25% shorter
-INNER_SCALE = 0.7795
+INNER_SCALE = 0.72
 PAGE_COUNT = 3
-HARD_LABEL_SCALE = 0.038 * 1.5
-AFR_DIGIT_SCALE = 0.22 * 1.15
-TICK_LABEL_SCALE = 0.055 * 1.25
-CAPTION_SCALE = 0.038 * 1.25
+# Type as fractions of dial *half* (face-relative sizing caused overflow).
+AFR_DIGIT_OF_HALF = 0.58
+TICK_OF_HALF = 0.16
+CAPTION_OF_HALF = 0.12
+HARD_LABEL_OF_CHROME = 0.42
 
 
 def _stoich_segment_index(n: int = SEGMENT_COUNT) -> int:
@@ -56,7 +57,7 @@ def _segment_svg_color(band: str, lit: bool, *, stoich: bool = False) -> str:
         }.get(band, "#666666")
     if stoich:
         return "#2a4a32"
-    return "#1a1a1e"
+    return "#2e2e36"  # visible unlit ring on black
 
 
 def _layout(w: int = FACE_W, h: int = FACE_H) -> dict:
@@ -159,8 +160,8 @@ def render_gauge_svg(
         f'<rect x="0" y="0" width="{w}" height="{TOP_CHROME}" fill="#08080c"/>',
     ]
 
-    # Hard-button labels (not touch targets) — +50%
-    label_px = max(18, round(w * HARD_LABEL_SCALE))
+    # Hard-button labels (not touch targets)
+    label_px = max(16, round(TOP_CHROME * HARD_LABEL_OF_CHROME))
     parts.append(
         f'<text x="{L["mode_x"]}" y="{L["chrome_y"]}" fill="#e0e0e6" '
         f'font-size="{label_px}" font-weight="700" '
@@ -216,12 +217,15 @@ def render_gauge_svg(
             )
             parts.append(f'<polygon points="{" ".join(pts)}" fill="{color}"{stroke}/>')
 
-        ref = min(w, h)
-        label_tick = max(18, round(ref * TICK_LABEL_SCALE))
+        half = L["half"]
+        label_tick = max(11, round(half * TICK_OF_HALF))
         for mark, label in ((8, "8"), (11, "11"), (13, "13"), (15, "15"), (17, "17"), (20, "20")):
             t = (mark - AFR_MIN) / (AFR_MAX - AFR_MIN)
             ang = math.radians(start_deg - t * sweep_deg)
-            r = max(8.0, _inner_radius_at(ang, L) - label_tick * 0.72)
+            # Tick labels sit in the ring band, not the digit hole.
+            ri = _inner_radius_at(ang, L)
+            ro = _outer_radius_at(ang, L)
+            r = (ri + ro) / 2.0
             x = cx + r * math.cos(ang)
             y = cy - r * math.sin(ang)
             parts.append(
@@ -230,17 +234,17 @@ def render_gauge_svg(
                 f'text-anchor="middle" dominant-baseline="middle">{label}</text>'
             )
 
-        digit_px = round(ref * AFR_DIGIT_SCALE)
-        digit_y = cy - L["inner_half"] * 0.06
+        digit_px = min(round(half * AFR_DIGIT_OF_HALF), round(L["inner_half"] * 0.95))
+        digit_y = cy - digit_px * 0.08
         parts.append(
             f'<text x="{cx}" y="{digit_y:.1f}" fill="#ff2a2a" '
             f'font-size="{digit_px}" font-weight="700" '
             f'font-family="Consolas, monospace" text-anchor="middle" '
             f'dominant-baseline="middle">{state.readout()}</text>'
         )
-        caption_px = max(13, round(ref * CAPTION_SCALE))
+        caption_px = max(9, round(half * CAPTION_OF_HALF))
         parts.append(
-            f'<text x="{cx}" y="{digit_y + digit_px * 0.48:.1f}" fill="#c0c0c8" '
+            f'<text x="{cx}" y="{digit_y + digit_px * 0.52:.1f}" fill="#c0c0c8" '
             f'font-size="{caption_px}" font-weight="600" '
             f'font-family="Segoe UI, Arial, sans-serif" text-anchor="middle" '
             f'dominant-baseline="hanging">AIR/FUEL RATIO</text>'

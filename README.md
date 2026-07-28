@@ -25,17 +25,18 @@ Simulated air–fuel ratio in **landscape** (logical **448×368**; native panel 
 ```text
 # From the aether product root (Python 3.11+)
 python -m mockup
-# or:
-python mockup/run.py
+python -m mockup.capture          # PNG frames (needs ImageMagick magick)
+python -m mockup.capture --html   # + Edge/Chrome headless of gauge.html
 
 # Unit tests (pure mapping + simulator — no display required)
 python -m pytest mockup/tests -q
 
-# Open the graphical mockup in a browser (double-click also works)
+# Open the graphical mockup in a browser
 # mockup/gauge.html
 ```
 
-`python -m mockup` prints a short simulated stream (AFR, band, lit segments) and writes a snapshot under `mockup/out/` when run with defaults. Pure mapping lives in `mockup/afr_gauge.py` and is the unit under test.
+`python -m mockup` prints a short simulated stream and writes SVG under `mockup/out/`.
+**Agents must run `python -m mockup.capture` and open the PNGs** after visual layout changes — do not claim the face looks right from code alone. Pure mapping lives in `mockup/afr_gauge.py`.
 
 ## Host gate (C plate)
 
