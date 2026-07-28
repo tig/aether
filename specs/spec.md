@@ -15,7 +15,6 @@ Screen-specific layout lives elsewhere (see [Spec map](#spec-map)). Do not dump 
 | **[specs/spec.md](spec.md)** (this file) | Product mission, hardware target, value requirements (HW + SW) |
 | **[specs/afr-face.md](afr-face.md)** | **AFR screen only** — layout, dial, type, RPM/TPS on that face |
 | **[specs/lexicon.md](lexicon.md)** | Face and product phrase book |
-| **[specs/maps.md](maps.md)** | ECU map/tune R/W — ATM + AMP, MSQ/INI interop, safety, LLM edit path ([#4](https://github.com/tig/aether/issues/4)) |
 | *future* `specs/logging.md` | Logging, review, export, analysis |
 | *future* `specs/setup.md` | First-run, profiles, fuels, alarms config |
 | *future* `specs/inputs.md` | Serial / CAN / sensor wiring and identity |
