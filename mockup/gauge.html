@@ -105,11 +105,19 @@
     const BAND_AMBER_LT = 15.8;
 
     // Top chrome for hard-button labels + log LED; bottom for swipe dots.
-    const TOP_CHROME = 40;
+    // Larger chrome so MODE/SEL can be 50% bigger after dial shrinks 25%.
+    const TOP_CHROME = 60;
     const BOTTOM_DOTS = 28;
-    // Band thickness ~25% under prior; outer flush L/R of landscape face.
+    // Dial 25% shorter than full content band; outer is a square of that half
+    // so mid-side band width == mid-top band height (equal radial thickness).
+    const DIAL_SCALE = 0.75;
     const INNER_SCALE = 0.7795;
     const PAGE_COUNT = 3;
+    // Type scales (device px)
+    const HARD_LABEL_SCALE = 0.038 * 1.5;   // +50%
+    const AFR_DIGIT_SCALE = 0.22 * 1.15;    // +15%
+    const TICK_LABEL_SCALE = 0.055 * 1.25;  // +25%
+    const CAPTION_SCALE = 0.038 * 1.25;     // +25%
 
     function clampAfr(afr) {
       return Math.min(AFR_MAX, Math.max(AFR_MIN, afr));
@@ -185,30 +193,30 @@
     let lastState = mapAfr(AFR_STOICH);
 
     /**
-     * Landscape layout. Dial sits in the content band between top chrome
-     * (hard-button labels) and bottom swipe dots — shifted down from top.
+     * Landscape layout. Dial sits in the content band under tall top chrome
+     * (hard-button labels) and above bottom swipe dots.
      */
     function layout(w, h) {
       const contentTop = TOP_CHROME;
       const contentBot = h - BOTTOM_DOTS;
       const contentH = contentBot - contentTop;
-      // Dial diameter limited by height of content band (flush L/R still via outer rays).
-      const half = Math.min(w / 2, contentH / 2);
+      // 25% shorter than packing the full content band.
+      const half = Math.min(w / 2, contentH / 2) * DIAL_SCALE;
       const cx = w / 2;
-      // Shift gauge down: center of content band (not top-aligned).
+      // Center of remaining content band (gauge shifted down under chrome).
       const cy = contentTop + contentH / 2;
+      // Outer square half-side == half → mid-side thickness == mid-top thickness.
+      const outerHalf = half;
       const innerHalf = half * INNER_SCALE;
       const innerCorner = innerHalf * 0.28;
-      // Outer flush: left 0, right w, top contentTop, bottom contentBot
       return {
         w, h,
         contentTop, contentBot, contentH,
-        half, cx, cy,
+        half, outerHalf, cx, cy,
         innerHalf, innerCorner,
-        // Label anchors for hard buttons (not hit targets)
-        modeLabel: { x: 28, y: TOP_CHROME / 2 },
-        selLabel: { x: w - 28, y: TOP_CHROME / 2 },
-        logLed: { x: w / 2, y: TOP_CHROME / 2, r: 8 },
+        modeLabel: { x: 22, y: TOP_CHROME / 2 },
+        selLabel: { x: w - 22, y: TOP_CHROME / 2 },
+        logLed: { x: w / 2, y: TOP_CHROME / 2, r: 9 },
         dotsY: h - BOTTOM_DOTS / 2,
       };
     }
@@ -237,22 +245,19 @@
       return half;
     }
 
-    /** Outer: flush to landscape panel L/R and content band T/B. */
+    /**
+     * Outer: square of half-side outerHalf (same on mid-sides and mid-top).
+     * Corners still reach farther so radial thickness is equal mid-side/mid-top.
+     */
     function outerRadiusAt(a, L) {
       const dx = Math.cos(a);
       const dy = -Math.sin(a);
+      const oh = L.outerHalf;
       let rMax = Infinity;
-      if (dx > 1e-9) rMax = Math.min(rMax, (L.w - L.cx) / dx);
-      if (dx < -1e-9) rMax = Math.min(rMax, (0 - L.cx) / dx);
-      if (dy > 1e-9) rMax = Math.min(rMax, (L.contentBot - L.cy) / dy);
-      if (dy < -1e-9) rMax = Math.min(rMax, (L.contentTop - L.cy) / dy);
-      // Prefer edge-flush when content band is taller than dial half*2
-      // Clamp to geometric half so corners fill toward L/R mid-height.
-      const sideR = L.w / 2 - 0.5;
-      if (Math.abs(dx) >= Math.abs(dy)) {
-        // favor full width flush on near-horizontal rays
-        rMax = Math.min(rMax, sideR / Math.max(Math.abs(dx), 1e-9));
-      }
+      if (dx > 1e-9) rMax = Math.min(rMax, oh / dx);
+      if (dx < -1e-9) rMax = Math.min(rMax, oh / -dx);
+      if (dy > 1e-9) rMax = Math.min(rMax, oh / dy);
+      if (dy < -1e-9) rMax = Math.min(rMax, oh / -dy);
       return Math.max(L.innerHalf + 4, rMax - 0.5);
     }
 
@@ -270,8 +275,8 @@
       // Labels only — map to physical PWR/BOOT-style keys on the top edge.
       const y = L.modeLabel.y;
       ctx.textBaseline = "middle";
-      ctx.fillStyle = "#c8c8d0";
-      const px = Math.max(13, Math.round(L.w * 0.038));
+      ctx.fillStyle = "#e0e0e6";
+      const px = Math.max(18, Math.round(L.w * HARD_LABEL_SCALE));
       ctx.font = `700 ${px}px Segoe UI, system-ui, sans-serif`;
       ctx.textAlign = "left";
       ctx.fillText("MODE", L.modeLabel.x, y);
@@ -372,7 +377,8 @@
         }
       }
 
-      const labelPx = Math.max(16, Math.round(Math.min(L.w, L.h) * 0.055));
+      const ref = Math.min(L.w, L.h);
+      const labelPx = Math.max(18, Math.round(ref * TICK_LABEL_SCALE));
       ctx.fillStyle = "#d0d0d8";
       ctx.font = `600 ${labelPx}px Segoe UI, system-ui, sans-serif`;
       ctx.textAlign = "center";
@@ -386,7 +392,7 @@
       }
 
       const readout = state.valid ? state.display.toFixed(1) : "--.-";
-      const digitPx = Math.round(Math.min(L.w, L.h) * 0.22);
+      const digitPx = Math.round(ref * AFR_DIGIT_SCALE);
       const digitY = cy - L.innerHalf * 0.06;
       ctx.fillStyle = "#ff2a2a";
       ctx.font = `bold ${digitPx}px Consolas, ui-monospace, monospace`;
@@ -397,8 +403,8 @@
       ctx.fillText(readout, cx, digitY);
       ctx.shadowBlur = 0;
 
-      const captionPx = Math.max(11, Math.round(Math.min(L.w, L.h) * 0.038));
-      ctx.fillStyle = "#b8b8c0";
+      const captionPx = Math.max(13, Math.round(ref * CAPTION_SCALE));
+      ctx.fillStyle = "#c0c0c8";
       ctx.font = `600 ${captionPx}px Segoe UI, system-ui, sans-serif`;
       ctx.textBaseline = "top";
       ctx.fillText("AIR/FUEL RATIO", cx, digitY + digitPx * 0.48);

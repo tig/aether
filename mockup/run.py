@@ -29,10 +29,15 @@ from .afr_gauge import (
 # are on the TOP edge → logical UI size 448×368.
 FACE_W = 448
 FACE_H = 368
-TOP_CHROME = 40
+TOP_CHROME = 60  # room for +50% MODE/SEL labels
 BOTTOM_DOTS = 28
+DIAL_SCALE = 0.75  # graph 25% shorter
 INNER_SCALE = 0.7795
 PAGE_COUNT = 3
+HARD_LABEL_SCALE = 0.038 * 1.5
+AFR_DIGIT_SCALE = 0.22 * 1.15
+TICK_LABEL_SCALE = 0.055 * 1.25
+CAPTION_SCALE = 0.038 * 1.25
 
 
 def _stoich_segment_index(n: int = SEGMENT_COUNT) -> int:
@@ -58,9 +63,10 @@ def _layout(w: int = FACE_W, h: int = FACE_H) -> dict:
     content_top = TOP_CHROME
     content_bot = h - BOTTOM_DOTS
     content_h = content_bot - content_top
-    half = min(w / 2.0, content_h / 2.0)
+    half = min(w / 2.0, content_h / 2.0) * DIAL_SCALE
     cx = w / 2.0
     cy = content_top + content_h / 2.0
+    outer_half = half  # mid-side thickness == mid-top thickness
     inner_half = half * INNER_SCALE
     return {
         "w": w,
@@ -68,14 +74,15 @@ def _layout(w: int = FACE_W, h: int = FACE_H) -> dict:
         "content_top": float(content_top),
         "content_bot": float(content_bot),
         "half": half,
+        "outer_half": outer_half,
         "cx": cx,
         "cy": cy,
         "inner_half": inner_half,
         "inner_corner": inner_half * 0.28,
-        "mode_x": 28.0,
-        "sel_x": w - 28.0,
+        "mode_x": 22.0,
+        "sel_x": w - 22.0,
         "chrome_y": TOP_CHROME / 2.0,
-        "log_r": 8.0,
+        "log_r": 9.0,
         "dots_y": h - BOTTOM_DOTS / 2.0,
     }
 
@@ -107,18 +114,19 @@ def _radius_to_rounded_square(ux: float, uy: float, half: float, corner: float) 
 
 
 def _outer_radius_at(a: float, L: dict) -> float:
+    """Square outer envelope: equal mid-side and mid-top radial thickness."""
     dx = math.cos(a)
     dy = -math.sin(a)
-    w, cx, cy = L["w"], L["cx"], L["cy"]
+    oh = L["outer_half"]
     r_max = float("inf")
     if dx > 1e-9:
-        r_max = min(r_max, (w - cx) / dx)
+        r_max = min(r_max, oh / dx)
     if dx < -1e-9:
-        r_max = min(r_max, (0.0 - cx) / dx)
+        r_max = min(r_max, oh / -dx)
     if dy > 1e-9:
-        r_max = min(r_max, (L["content_bot"] - cy) / dy)
+        r_max = min(r_max, oh / dy)
     if dy < -1e-9:
-        r_max = min(r_max, (L["content_top"] - cy) / dy)
+        r_max = min(r_max, oh / -dy)
     return max(L["inner_half"] + 4.0, r_max - 0.5)
 
 
@@ -151,16 +159,16 @@ def render_gauge_svg(
         f'<rect x="0" y="0" width="{w}" height="{TOP_CHROME}" fill="#08080c"/>',
     ]
 
-    # Hard-button labels (not touch targets)
-    label_px = max(13, round(w * 0.038))
+    # Hard-button labels (not touch targets) — +50%
+    label_px = max(18, round(w * HARD_LABEL_SCALE))
     parts.append(
-        f'<text x="{L["mode_x"]}" y="{L["chrome_y"]}" fill="#c8c8d0" '
+        f'<text x="{L["mode_x"]}" y="{L["chrome_y"]}" fill="#e0e0e6" '
         f'font-size="{label_px}" font-weight="700" '
         f'font-family="Segoe UI, Arial, sans-serif" text-anchor="start" '
         f'dominant-baseline="middle">MODE</text>'
     )
     parts.append(
-        f'<text x="{L["sel_x"]}" y="{L["chrome_y"]}" fill="#c8c8d0" '
+        f'<text x="{L["sel_x"]}" y="{L["chrome_y"]}" fill="#e0e0e6" '
         f'font-size="{label_px}" font-weight="700" '
         f'font-family="Segoe UI, Arial, sans-serif" text-anchor="end" '
         f'dominant-baseline="middle">SEL</text>'
@@ -208,7 +216,8 @@ def render_gauge_svg(
             )
             parts.append(f'<polygon points="{" ".join(pts)}" fill="{color}"{stroke}/>')
 
-        label_tick = max(16, round(min(w, h) * 0.055))
+        ref = min(w, h)
+        label_tick = max(18, round(ref * TICK_LABEL_SCALE))
         for mark, label in ((8, "8"), (11, "11"), (13, "13"), (15, "15"), (17, "17"), (20, "20")):
             t = (mark - AFR_MIN) / (AFR_MAX - AFR_MIN)
             ang = math.radians(start_deg - t * sweep_deg)
@@ -221,7 +230,7 @@ def render_gauge_svg(
                 f'text-anchor="middle" dominant-baseline="middle">{label}</text>'
             )
 
-        digit_px = round(min(w, h) * 0.22)
+        digit_px = round(ref * AFR_DIGIT_SCALE)
         digit_y = cy - L["inner_half"] * 0.06
         parts.append(
             f'<text x="{cx}" y="{digit_y:.1f}" fill="#ff2a2a" '
@@ -229,9 +238,9 @@ def render_gauge_svg(
             f'font-family="Consolas, monospace" text-anchor="middle" '
             f'dominant-baseline="middle">{state.readout()}</text>'
         )
-        caption_px = max(11, round(min(w, h) * 0.038))
+        caption_px = max(13, round(ref * CAPTION_SCALE))
         parts.append(
-            f'<text x="{cx}" y="{digit_y + digit_px * 0.48:.1f}" fill="#b8b8c0" '
+            f'<text x="{cx}" y="{digit_y + digit_px * 0.48:.1f}" fill="#c0c0c8" '
             f'font-size="{caption_px}" font-weight="600" '
             f'font-family="Segoe UI, Arial, sans-serif" text-anchor="middle" '
             f'dominant-baseline="hanging">AIR/FUEL RATIO</text>'
