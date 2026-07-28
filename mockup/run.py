@@ -33,10 +33,10 @@ TOP_CHROME = 60
 # Dial uses full height under chrome; swipe indicator overlays bottom (no dead strip).
 SWIPE_DOTS_Y_FROM_BOTTOM = 14
 # Constant band thickness vs shorter content half (mid-side width == mid-top height).
-BAND_FRAC = 0.14
+BAND_FRAC = 0.14 * 1.1  # dial segments +10% (wider sides / taller top)
 PAGE_COUNT = 3
-# Type as fractions of min(inner half-axes). +50% vs prior.
-AFR_DIGIT_OF_HALF = 0.58 * 1.5  # value
+# Type as fractions of min(inner half-axes).
+AFR_DIGIT_OF_HALF = 0.58 * 1.5 * 1.1  # value (+10%)
 TICK_OF_HALF = 0.16 * 1.5  # dial legend
 CAPTION_OF_HALF = 0.12 * 1.5  # value legend
 HARD_LABEL_OF_CHROME = 0.42  # button labels
@@ -203,9 +203,13 @@ def render_gauge_svg(
         )
         parts.append(f'<circle cx="{cx}" cy="{led_y}" r="{led_r}" fill="#ff3232"/>')
     else:
+        # Dim red LED (still red) for logging-off state.
         parts.append(
-            f'<circle cx="{cx}" cy="{led_y}" r="{led_r}" fill="#121216" '
-            f'stroke="#33333a" stroke-width="2"/>'
+            f'<circle cx="{cx}" cy="{led_y}" r="{led_r + 2}" fill="#781414" opacity="0.25"/>'
+        )
+        parts.append(
+            f'<circle cx="{cx}" cy="{led_y}" r="{led_r}" fill="#5a1818" '
+            f'stroke="#3a1010" stroke-width="1.5"/>'
         )
 
     if page == 0:
