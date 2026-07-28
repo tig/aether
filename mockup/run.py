@@ -269,7 +269,7 @@ def render_gauge_svg(
         # Value (+20% again) + value legend; centered then nudged down in aperture.
         digit_px = min(
             round(half * AFR_DIGIT_OF_HALF),
-            round(min(L["inner_half_w"], L["inner_half_h"]) * 0.82),
+            round(min(L["inner_half_w"], L["inner_half_h"]) * 0.95),
         )
         caption_px = max(12, round(half * CAPTION_OF_HALF))
         value_gap = round(digit_px * 0.18)
