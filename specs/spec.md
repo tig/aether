@@ -15,9 +15,9 @@ Screen-specific layout lives elsewhere (see [Spec map](#spec-map)). Do not dump 
 | **[specs/spec.md](spec.md)** (this file) | Product mission, hardware target, value requirements (HW + SW) |
 | **[specs/afr-face.md](afr-face.md)** | **AFR screen only** — layout, dial, type, RPM/TPS on that face |
 | **[specs/lexicon.md](lexicon.md)** | Face and product phrase book |
-| **[specs/inputs.md](inputs.md)** | **Live serial-class inputs** (USB / UART / BT / Wi-Fi): protocols, transport roles, canonical channels; CAN reserved later |
 | *future* `specs/logging.md` | Logging, review, export, analysis |
 | *future* `specs/setup.md` | First-run, profiles, fuels, alarms config |
+| *future* `specs/inputs.md` | Serial / CAN / sensor wiring and identity |
 
 Root [spec.md](../spec.md) is a short seed pointer into this tree (for silico-style “product truth at HEAD”).
 
@@ -244,7 +244,7 @@ Systems that meet **must-have** and **highly valuable** items turn oxygen measur
 |-------|--------|
 | Product requirements (this doc) | **In progress** |
 | Host AFR face mockup + unit tests | **In scope / present** |
-| Live CAN / serial ECU path | Specced for serial-class live path ([inputs.md](inputs.md)); implementation not done |
+| Live CAN / serial ECU path | Not done |
 | Metal AMOLED product face | Not done |
 | Durable multi-channel logger + review UI | Not done |
 
@@ -252,12 +252,11 @@ Systems that meet **must-have** and **highly valuable** items turn oxygen measur
 
 ## 7. Open questions
 
-- ~~First ECU protocol slice (OBD ISO-TP, manufacturer CAN, …)?~~ → Serial-class pilot decided in [inputs.md](inputs.md) (**FOME over USB** on Aether prototype; Speeduino sim secondary; CAN deferred).
+- First ECU protocol slice (OBD ISO-TP, manufacturer CAN, …)?
 - Wideband front-end: which modules and how many channels on day one?
 - Logger media and export path for v1?
 - Hard-button semantics for MODE / SEL beyond banner labels?
 - Default fuel scale and display range for first ship?
-- Production SKU USB topology: OTG host vs device-only on Type-C (see inputs open questions)?
 
 ---
 
@@ -267,6 +266,5 @@ Systems that meet **must-have** and **highly valuable** items turn oxygen measur
 |------|------|
 | `mockup/` | Host-runnable AFR face (simulated AFR, RPM, TPS) |
 | `docs/images/afr-face-mockup.gif` | Visual target for the AFR screen |
-| `docs/research/serial-protocols.md` | Non-normative protocol survey notes for inputs |
 | `firmware/`, `host/` | C plate (identity, host tests) |
 | [README.md](../README.md) | Human entry |
