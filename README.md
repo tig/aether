@@ -20,7 +20,7 @@ Contract seed: [spec.md](spec.md). Host path: [install/README.md](install/README
 
 ## AFR gauge mockup (host)
 
-Simulated air–fuel ratio on a **square** device face (not a round aftermarket bezel): LED-style arc in the upper region, scale **8–20**, large center readout, **AIR/FUEL RATIO** label, and a **fat bottom bar** with tappable **MODE** / **SEL** targets sized for a tiny touch AMOLED.
+Simulated air–fuel ratio on a **368×448** device face (real panel size): LED arc flush to edges, scale **8–20**, large center readout with **AIR/FUEL RATIO** under the value, a **red logging LED** (no text) above the buttons, and fat **MODE** / **SEL** targets. **SEL** toggles logging in the mockup.
 
 ```text
 # From the aether product root (Python 3.11+)

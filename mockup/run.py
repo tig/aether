@@ -26,10 +26,13 @@ from .afr_gauge import (
     states_change,
 )
 
-# Square device-class canvas (matches mockup/gauge.html logical size).
-FACE_SIZE = 368
-BTN_STRIP_FRAC = 0.18
+# ESP32-S3-Touch-AMOLED-1.8 class panel (matches mockup/gauge.html).
+FACE_W = 368
+FACE_H = 448
+BTN_STRIP_H = 72
 BTN_GAP = 6
+# Band 25% thinner than prior 0.706-inner: thickness 0.294→0.2205 → inner 0.7795
+INNER_SCALE = 0.7795
 
 
 def _stoich_segment_index(n: int = SEGMENT_COUNT) -> int:
@@ -47,29 +50,30 @@ def _segment_svg_color(band: str, lit: bool, *, stoich: bool = False) -> str:
             "invalid": "#444444",
         }.get(band, "#666666")
     if stoich:
-        return "#2a4a32"  # soft stoich hint when not fill-lit
+        return "#2a4a32"
     return "#1a1a1e"
 
 
-# Outer flush to display. Band ~30% thinner than early full-flush ring
-# (inner 0.58→0.706 of half) so AFR digits have more room inside.
-INNER_SCALE = 0.706
-
-
-def _layout(size: int = FACE_SIZE) -> dict:
-    strip_h = round(size * BTN_STRIP_FRAC)
-    btn_y = size - strip_h
+def _layout(w: int = FACE_W, h: int = FACE_H) -> dict:
+    strip_h = BTN_STRIP_H
+    btn_y = h - strip_h
     btn_h = strip_h
-    btn_w = (size - BTN_GAP) / 2
-    half = size / 2.0
+    btn_w = (w - BTN_GAP) / 2
+    half = w / 2.0
+    cx = w / 2.0
+    cy = half
     inner_half = half * INNER_SCALE
+    status_y = min(btn_y - 4.0, cy + half * 0.92)
     return {
-        "size": size,
+        "w": w,
+        "h": h,
+        "size": w,  # half-span for horizontal
         "strip_h": strip_h,
         "btn_y": float(btn_y),
-        "cx": half,
-        "cy": half,
+        "cx": cx,
+        "cy": cy,
         "half": half,
+        "status_y": status_y,
         "inner_half": inner_half,
         "inner_corner": inner_half * 0.28,
         "mode": {
@@ -90,7 +94,6 @@ def _layout(size: int = FACE_SIZE) -> dict:
 
 
 def _radius_to_rounded_square(ux: float, uy: float, half: float, corner: float) -> float:
-    """Ray length from origin to rounded square boundary (unit dir ux, uy)."""
     ax, ay = abs(ux), abs(uy)
     flat = half - corner
     if flat <= 0:
@@ -103,7 +106,6 @@ def _radius_to_rounded_square(ux: float, uy: float, half: float, corner: float) 
         t = half / ay
         if abs(t * ux) <= flat + 1e-9:
             return t
-    # Solid includes the corner disk; exterior boundary is the far arc (larger root).
     ccx = (1.0 if ux >= 0 else -1.0) * flat
     ccy = (1.0 if uy >= 0 else -1.0) * flat
     b = ux * ccx + uy * ccy
@@ -118,11 +120,9 @@ def _radius_to_rounded_square(ux: float, uy: float, half: float, corner: float) 
 
 
 def _outer_radius_at(a: float, L: dict) -> float:
-    """Ray to display edges L/T/R (+ button-top) — flush outer, longer at corners."""
     dx = math.cos(a)
     dy = -math.sin(a)
-    w = L["size"]
-    cx, cy = L["cx"], L["cy"]
+    w, cx, cy = L["w"], L["cx"], L["cy"]
     r_max = float("inf")
     if dx > 1e-9:
         r_max = min(r_max, (w - cx) / dx)
@@ -141,12 +141,16 @@ def _inner_radius_at(a: float, L: dict) -> float:
     return _radius_to_rounded_square(ux, uy, L["inner_half"], L["inner_corner"])
 
 
-def render_gauge_svg(state, size: int = FACE_SIZE) -> str:
-    """Square face: rounded-square inner, variable outer; stoich tick; MODE/SEL."""
-    L = _layout(size)
-    w = h = size
-    cx = L["cx"]
-    cy = L["cy"]
+def render_gauge_svg(
+    state,
+    w: int = FACE_W,
+    h: int = FACE_H,
+    *,
+    logging: bool = True,
+) -> str:
+    """Device-sized face (368×448): flush segments, log LED, MODE/SEL."""
+    L = _layout(w, h)
+    cx, cy = L["cx"], L["cy"]
     n = len(state.segment_bands)
     start_deg = 225.0
     sweep_deg = 270.0
@@ -164,8 +168,7 @@ def render_gauge_svg(state, size: int = FACE_SIZE) -> str:
         a0 = math.radians(start_deg - (i / n) * sweep_deg)
         a1 = math.radians(start_deg - ((i + 1) / n) * sweep_deg)
         gap = 0.012
-        aa0 = a0 - gap
-        aa1 = a1 + gap
+        aa0, aa1 = a0 - gap, a1 + gap
         pts: list[str] = []
         for s in range(steps + 1):
             t = s / steps
@@ -186,21 +189,21 @@ def render_gauge_svg(state, size: int = FACE_SIZE) -> str:
         )
         parts.append(f'<polygon points="{" ".join(pts)}" fill="{color}"{stroke}/>')
 
-    label_px = max(16, round(w * 0.052))
+    label_px = max(18, round(w * 0.062))
     for mark, label in ((8, "8"), (11, "11"), (13, "13"), (15, "15"), (17, "17"), (20, "20")):
         t = (mark - AFR_MIN) / (AFR_MAX - AFR_MIN)
         ang = math.radians(start_deg - t * sweep_deg)
-        r = max(8.0, _inner_radius_at(ang, L) - label_px * 0.75)
+        r = max(8.0, _inner_radius_at(ang, L) - label_px * 0.72)
         x = cx + r * math.cos(ang)
         y = cy - r * math.sin(ang)
         parts.append(
-            f'<text x="{x:.1f}" y="{y:.1f}" fill="#c8c8d0" font-size="{label_px}" '
+            f'<text x="{x:.1f}" y="{y:.1f}" fill="#d0d0d8" font-size="{label_px}" '
             f'font-weight="600" font-family="Segoe UI, Arial, sans-serif" '
             f'text-anchor="middle" dominant-baseline="middle">{label}</text>'
         )
 
-    digit_px = round(w * 0.28)
-    digit_y = cy - L["inner_half"] * 0.06
+    digit_px = round(w * 0.30)
+    digit_y = cy - L["inner_half"] * 0.08
     readout = state.readout()
     parts.append(
         f'<text x="{cx}" y="{digit_y:.1f}" fill="#ff2a2a" '
@@ -208,14 +211,36 @@ def render_gauge_svg(state, size: int = FACE_SIZE) -> str:
         f'font-family="Consolas, monospace" text-anchor="middle" '
         f'dominant-baseline="middle">{readout}</text>'
     )
+    caption_px = max(12, round(w * 0.042))
+    parts.append(
+        f'<text x="{cx}" y="{digit_y + digit_px * 0.48:.1f}" fill="#b8b8c0" '
+        f'font-size="{caption_px}" font-weight="600" '
+        f'font-family="Segoe UI, Arial, sans-serif" text-anchor="middle" '
+        f'dominant-baseline="hanging">AIR/FUEL RATIO</text>'
+    )
 
-    # Bottom strip + flush MODE / SEL (title only)
+    # Logging LED (no text) in rail above buttons
+    led_y = (L["status_y"] + L["btn_y"]) / 2
+    led_r = 9
+    if logging:
+        parts.append(
+            f'<circle cx="{cx}" cy="{led_y:.1f}" r="{led_r + 5}" fill="#ff2828" opacity="0.2"/>'
+        )
+        parts.append(
+            f'<circle cx="{cx}" cy="{led_y:.1f}" r="{led_r}" fill="#ff3232"/>'
+        )
+    else:
+        parts.append(
+            f'<circle cx="{cx}" cy="{led_y:.1f}" r="{led_r}" fill="#121216" '
+            f'stroke="#33333a" stroke-width="2"/>'
+        )
+
     parts.append(
         f'<rect x="0" y="{L["mode"]["y"]}" width="{w}" height="{L["strip_h"]}" fill="#0a0a0c"/>'
     )
     for key in ("mode", "sel"):
         b = L[key]
-        title_px = max(18, round(b["h"] * 0.42))
+        title_px = max(18, round(b["h"] * 0.38))
         parts.append(
             f'<rect x="{b["x"]:.1f}" y="{b["y"]:.1f}" width="{b["w"]:.1f}" height="{b["h"]:.1f}" '
             f'fill="#141418" stroke="#2e2e36" stroke-width="2"/>'
@@ -226,15 +251,6 @@ def render_gauge_svg(state, size: int = FACE_SIZE) -> str:
             f'font-family="Segoe UI, Arial, sans-serif" text-anchor="middle" '
             f'dominant-baseline="middle">{b["label"]}</text>'
         )
-
-    # AIR/FUEL RATIO — bottom-justified just above the button bar
-    caption_px = max(13, round(w * 0.045))
-    parts.append(
-        f'<text x="{cx}" y="{L["btn_y"] - 6:.1f}" fill="#b8b8c0" '
-        f'font-size="{caption_px}" font-weight="600" '
-        f'font-family="Segoe UI, Arial, sans-serif" text-anchor="middle" '
-        f'dominant-baseline="auto">AIR/FUEL RATIO</text>'
-    )
 
     parts.append("</svg>")
     return "\n".join(parts)
@@ -261,10 +277,10 @@ def run(ticks: int = 24, out_dir: Path | None = None, seed: int = 42) -> int:
     lines = [format_state_line(i, s) for i, s in enumerate(states)]
     report = "\n".join(lines) + "\n"
 
-    print("Aether AFR gauge mockup (simulated data, square face / circular gauge)")
+    print("Aether AFR gauge mockup (simulated data, 368×448 device face)")
     print(
         f"scale={AFR_MIN}–{AFR_MAX}  segments={SEGMENT_COUNT}  "
-        f"face={FACE_SIZE}×{FACE_SIZE}  ticks={ticks}  seed={seed}"
+        f"face={FACE_W}×{FACE_H}  ticks={ticks}  seed={seed}"
     )
     print("-" * 72)
     print(report, end="")
@@ -273,7 +289,10 @@ def run(ticks: int = 24, out_dir: Path | None = None, seed: int = 42) -> int:
 
     last = states[-1]
     svg_path = out / "afr_gauge.svg"
-    svg_path.write_text(render_gauge_svg(last), encoding="utf-8")
+    svg_path.write_text(render_gauge_svg(last, logging=True), encoding="utf-8")
+    (out / "afr_gauge_log_off.svg").write_text(
+        render_gauge_svg(last, logging=False), encoding="utf-8"
+    )
 
     for name, afr in (("rich", 10.5), ("stoich", 14.7), ("lean", 17.0)):
         (out / f"afr_{name}.svg").write_text(
@@ -301,7 +320,7 @@ def run(ticks: int = 24, out_dir: Path | None = None, seed: int = 42) -> int:
     print(f"wrote {svg_path}")
     print(f"wrote {json_path}")
     print(f"wrote {report_path}")
-    print("graphical UI: open mockup/gauge.html (flush L/T/R circle + MODE/SEL)")
+    print("graphical UI: open mockup/gauge.html (368×448 + log LED)")
     return 0
 
 

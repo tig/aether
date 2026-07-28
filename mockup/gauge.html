@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Aether — AFR Gauge Mockup (square face)</title>
+  <title>Aether — AFR Gauge Mockup (368×448)</title>
   <style>
     :root { color-scheme: dark; }
     * { box-sizing: border-box; }
@@ -25,13 +25,14 @@
       font-size: 0.72rem;
       color: #555;
       text-align: center;
-      max-width: 22rem;
+      max-width: 24rem;
       margin: 0;
       line-height: 1.35;
     }
+    /* ESP32-S3-Touch-AMOLED-1.8 class: 368×448 CSS px @ 1:1 device pixels */
     .device {
-      width: min(92vw, 420px);
-      aspect-ratio: 1 / 1;
+      width: min(92vw, 368px);
+      aspect-ratio: 368 / 448;
       background: #000;
       border: 1px solid #333;
       box-shadow: 0 12px 40px rgba(0,0,0,0.55);
@@ -60,20 +61,22 @@
   </style>
 </head>
 <body>
-  <h1>AETHER · SQUARE AFR FACE</h1>
+  <h1>AETHER · 368×448 AMOLED</h1>
   <p class="sub">
-    Segments flush to display edges; thinner band / larger center for big AFR;
-    stoich tick; <strong>AIR/FUEL RATIO</strong> above MODE/SEL.
+    Prototype matches device pixels (368×448). Segments flush to edges; large center AFR.
+    <strong>SEL</strong> toggles logging (red LED above buttons — no text on the tiny face).
   </p>
   <div class="device" id="device">
-    <canvas id="gauge" width="368" height="368" aria-label="Air fuel ratio gauge, square face"></canvas>
+    <canvas id="gauge" width="368" height="448" aria-label="Aether AFR gauge, 368 by 448"></canvas>
   </div>
   <div class="meta" id="meta">—</div>
-  <div class="badge">tap MODE / SEL · python -m mockup for stream dump</div>
+  <div class="badge">SEL = log on/off · MODE = mode · python -m mockup</div>
 
   <script>
     // Visual twin of mockup/afr_gauge.py (Python is canonical / unit-tested).
-    // Square face: circular arc diameter = width (flush L/T/R); MODE/SEL flush bottom.
+    // Device panel: 368×448 (ESP32-S3-Touch-AMOLED-1.8 class).
+    const FACE_W = 368;
+    const FACE_H = 448;
     const AFR_MIN = 8.0;
     const AFR_MAX = 20.0;
     const AFR_STOICH = 14.7;
@@ -82,9 +85,11 @@
     const BAND_GREEN_LT = 15.0;
     const BAND_AMBER_LT = 15.8;
 
-    // Bottom bar height; buttons flush to L/R/B with a thin gap between.
-    const BTN_STRIP_FRAC = 0.18;
+    // Button strip height in device px (fat touch targets).
+    const BTN_STRIP_H = 72;
     const BTN_GAP = 6;
+    // Prior thickness ~0.294*half → 25% smaller band → thickness 0.2205 → inner 0.7795
+    const INNER_SCALE = 0.7795;
 
     function clampAfr(afr) {
       return Math.min(AFR_MAX, Math.max(AFR_MIN, afr));
@@ -144,12 +149,10 @@
       red: "#ef4444",
       invalid: "#444",
       dim: "#1a1a1e",
-      // Soft stoich tick (~14.7) when that segment is not fill-lit
       stoichHint: "#2a4a32",
       stoichHintEdge: "#3d6b48",
     };
 
-    /** Segment index that contains AFR 14.7 (stoich mark on the arc). */
     function stoichSegmentIndex(n = SEGMENT_COUNT) {
       const span = AFR_MAX - AFR_MIN;
       let i = Math.floor(((AFR_STOICH - AFR_MIN) / span) * n);
@@ -159,30 +162,27 @@
 
     const MODES = ["LIVE", "PEAK", "AVG"];
     let modeIdx = 0;
-    let selHold = false;
+    let logging = true; // default on — red LED when active
     let flashBtn = null;
     let flashUntil = 0;
     let lastState = mapAfr(AFR_STOICH);
 
-    // Outer segments flush to display L/T/R. Band ~30% thinner than the early
-    // full-flush ring (inner grew) so the AFR digits have more room inside.
-    // Prior ring: outer=half, inner≈0.58*half → thickness 0.42*half.
-    // Now: thickness ≈ 0.42*0.70*half → inner ≈ 0.706*half.
-    const INNER_SCALE = 0.706;
-
     function layout(w, h) {
-      const stripH = Math.round(h * BTN_STRIP_FRAC);
+      const stripH = BTN_STRIP_H;
       const btnY = h - stripH;
       const btnH = stripH;
       const btnW = (w - BTN_GAP) / 2;
+      // Dial centered on width; top flush with panel top.
       const half = w / 2;
       const cx = w / 2;
       const cy = half;
       const innerHalf = half * INNER_SCALE;
       const innerCorner = innerHalf * 0.28;
+      // Status rail between dial bottom and buttons (logging LED lives here).
+      const statusY = Math.min(btnY - 4, cy + half * 0.92);
       return {
         w, h, stripH, btnY, half,
-        cx, cy,
+        cx, cy, statusY,
         innerHalf,
         innerCorner,
         mode: { x: 0, y: btnY, w: btnW, h: btnH, id: "mode" },
@@ -190,34 +190,22 @@
       };
     }
 
-    /**
-     * Ray length from origin to a rounded square (axis-aligned, center origin)
-     * of half-side `half` and corner radius `corner`. Direction (ux, uy) unit.
-     */
     function radiusToRoundedSquare(ux, uy, half, corner) {
       const ax = Math.abs(ux);
       const ay = Math.abs(uy);
       const flat = half - corner;
-      if (flat <= 0) {
-        // Degenerate: treat as circle of radius half
-        return half;
-      }
-      // Hit vertical flat?
+      if (flat <= 0) return half;
       if (ax > 1e-12) {
         const t = half / ax;
         if (Math.abs(t * uy) <= flat + 1e-9) return t;
       }
-      // Hit horizontal flat?
       if (ay > 1e-12) {
         const t = half / ay;
         if (Math.abs(t * ux) <= flat + 1e-9) return t;
       }
-      // Corner quarter-circle (center at (±flat, ±flat) in the ray's quadrant).
-      // Solid is the interior of the disk in the corner — exterior boundary is
-      // the far arc (larger root), not the near intersection.
       const ccx = Math.sign(ux || 1) * flat;
       const ccy = Math.sign(uy || 1) * flat;
-      const b = ux * ccx + uy * ccy; // d·C
+      const b = ux * ccx + uy * ccy;
       const c0 = ccx * ccx + ccy * ccy - corner * corner;
       const disc = b * b - c0;
       if (disc < 0) return half;
@@ -226,7 +214,6 @@
       return half;
     }
 
-    /** Outer: flush to display edges L/T/R (and button-top). Longer at corners. */
     function outerRadiusAt(a, L) {
       const dx = Math.cos(a);
       const dy = -Math.sin(a);
@@ -238,11 +225,8 @@
       return Math.max(L.innerHalf + 4, rMax - 0.5);
     }
 
-    /** Inner: rounded square aperture. */
     function innerRadiusAt(a, L) {
-      const ux = Math.cos(a);
-      const uy = -Math.sin(a);
-      return radiusToRoundedSquare(ux, uy, L.innerHalf, L.innerCorner);
+      return radiusToRoundedSquare(Math.cos(a), -Math.sin(a), L.innerHalf, L.innerCorner);
     }
 
     function segmentFill(i, band, lit) {
@@ -261,13 +245,41 @@
       ctx.strokeStyle = stroke;
       ctx.lineWidth = 2;
       ctx.strokeRect(rect.x + 1, rect.y + 1, rect.w - 2, rect.h - 2);
-
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.fillStyle = "#eee";
-      const titlePx = Math.max(18, Math.round(rect.h * 0.42));
+      const titlePx = Math.max(18, Math.round(rect.h * 0.38));
       ctx.font = `700 ${titlePx}px Segoe UI, system-ui, sans-serif`;
       ctx.fillText(label, rect.x + rect.w / 2, rect.y + rect.h / 2);
+    }
+
+    /** Text-free logging indicator: red LED when logging, dim ring when off. */
+    function drawLoggingLed(ctx, L) {
+      const r = 9;
+      const x = L.cx;
+      const y = (L.statusY + L.btnY) / 2;
+      if (logging) {
+        const pulse = 0.55 + 0.45 * Math.sin(performance.now() / 280);
+        ctx.beginPath();
+        ctx.arc(x, y, r + 5, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(255, 40, 40, ${0.12 + 0.18 * pulse})`;
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(x, y, r, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(255, 50, 50, ${0.75 + 0.25 * pulse})`;
+        ctx.shadowColor = "rgba(255,40,40,0.9)";
+        ctx.shadowBlur = 10 + 8 * pulse;
+        ctx.fill();
+        ctx.shadowBlur = 0;
+      } else {
+        ctx.beginPath();
+        ctx.arc(x, y, r, 0, Math.PI * 2);
+        ctx.fillStyle = "#121216";
+        ctx.fill();
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = "#33333a";
+        ctx.stroke();
+      }
     }
 
     function drawGauge(ctx, state) {
@@ -280,7 +292,6 @@
       ctx.fillRect(0, 0, w, h);
 
       const { cx, cy } = L;
-      // Nearly full arc; leave a bottom gap so digits / buttons stay clear
       const startDeg = 225;
       const sweepDeg = 270;
       const n = SEGMENT_COUNT;
@@ -290,7 +301,6 @@
         return [cx + r * Math.cos(a), cy - r * Math.sin(a)];
       }
 
-      // Variable-length segments: rounded-square inner, square outer (to L/T/R edges).
       for (let i = 0; i < n; i++) {
         const a0 = (startDeg - (i / n) * sweepDeg) * Math.PI / 180;
         const a1 = (startDeg - ((i + 1) / n) * sweepDeg) * Math.PI / 180;
@@ -317,7 +327,6 @@
         const lit = litSet.has(i);
         ctx.fillStyle = segmentFill(i, band, lit);
         ctx.fill();
-        // Stoich segment: subtle edge glow when not fully lit
         if (i === STOICH_SEG && !lit) {
           ctx.strokeStyle = COLORS.stoichHintEdge;
           ctx.lineWidth = 1.5;
@@ -325,47 +334,47 @@
         }
       }
 
-      // Scale marks — just inside the rounded-square aperture
-      const labelPx = Math.max(16, Math.round(w * 0.052));
-      ctx.fillStyle = "#c8c8d0";
+      // Scale marks — slightly larger
+      const labelPx = Math.max(18, Math.round(w * 0.062));
+      ctx.fillStyle = "#d0d0d8";
       ctx.font = `600 ${labelPx}px Segoe UI, system-ui, sans-serif`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       for (const mark of [8, 11, 13, 15, 17, 20]) {
         const t = (mark - AFR_MIN) / (AFR_MAX - AFR_MIN);
         const a = (startDeg - t * sweepDeg) * Math.PI / 180;
-        const r = Math.max(8, innerRadiusAt(a, L) - labelPx * 0.75);
+        const r = Math.max(8, innerRadiusAt(a, L) - labelPx * 0.72);
         const [x, y] = pt(r, a);
         ctx.fillText(String(mark), x, y);
       }
 
-      // Large center AFR readout (room opened by 30% smaller ring)
+      // Large center AFR + caption under value
       const readout = state.valid ? state.display.toFixed(1) : "--.-";
-      const digitPx = Math.round(w * 0.28);
+      const digitPx = Math.round(w * 0.30);
+      const digitY = cy - L.innerHalf * 0.08;
       ctx.fillStyle = "#ff2a2a";
       ctx.font = `bold ${digitPx}px Consolas, ui-monospace, monospace`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.shadowColor = "rgba(255,40,40,0.4)";
       ctx.shadowBlur = 12;
-      // Sit in upper-mid of the open aperture
-      const digitY = cy - L.innerHalf * 0.06;
       ctx.fillText(readout, cx, digitY);
       ctx.shadowBlur = 0;
 
-      // MODE / SEL first so label can sit just above them
+      const captionPx = Math.max(12, Math.round(w * 0.042));
+      ctx.fillStyle = "#b8b8c0";
+      ctx.font = `600 ${captionPx}px Segoe UI, system-ui, sans-serif`;
+      ctx.textBaseline = "top";
+      ctx.fillText("AIR/FUEL RATIO", cx, digitY + digitPx * 0.48);
+
+      // Logging LED in the rail above buttons (no text)
+      drawLoggingLed(ctx, L);
+
+      // MODE / SEL
       ctx.fillStyle = "#0a0a0c";
       ctx.fillRect(0, L.mode.y, w, L.stripH);
       drawButton(ctx, L.mode, "MODE", false);
-      drawButton(ctx, L.sel, "SEL", selHold);
-
-      // AIR/FUEL RATIO — bottom-justified above the button bar
-      const captionPx = Math.max(13, Math.round(w * 0.045));
-      ctx.fillStyle = "#b8b8c0";
-      ctx.font = `600 ${captionPx}px Segoe UI, system-ui, sans-serif`;
-      ctx.textAlign = "center";
-      ctx.textBaseline = "bottom";
-      ctx.fillText("AIR/FUEL RATIO", cx, L.btnY - 6);
+      drawButton(ctx, L.sel, "SEL", logging);
     }
 
     const canvas = document.getElementById("gauge");
@@ -389,12 +398,12 @@
       if (id === "mode") {
         modeIdx = (modeIdx + 1) % MODES.length;
       } else if (id === "sel") {
-        selHold = !selHold;
+        logging = !logging;
       }
       drawGauge(ctx, lastState);
       meta.textContent =
         `AFR ${lastState.display.toFixed(2)}  band=${lastState.band}  mode=${MODES[modeIdx]}` +
-        (selHold ? "  SEL=hold" : "");
+        (logging ? "  LOG●" : "  LOG○");
     }
 
     canvas.addEventListener("pointerdown", (e) => {
@@ -406,16 +415,14 @@
     });
 
     function tick() {
-      if (!selHold) {
-        const afr = nextSimAfr();
-        lastState = mapAfr(afr);
-      }
+      const afr = nextSimAfr();
+      lastState = mapAfr(afr);
       drawGauge(ctx, lastState);
       meta.textContent =
         `AFR ${lastState.display.toFixed(2)}  band=${lastState.band}  lit=${lastState.litCount}/${SEGMENT_COUNT}` +
         `  mode=${MODES[modeIdx]}` +
-        (lastState.valid ? "" : "  INVALID") +
-        (selHold ? "  [frozen]" : "");
+        (logging ? "  LOG●" : "  LOG○") +
+        (lastState.valid ? "" : "  INVALID");
       requestAnimationFrame(() => setTimeout(tick, 180));
     }
     tick();

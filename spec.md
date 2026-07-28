@@ -39,10 +39,12 @@ Reference visual: commercial 52 mm digital wideband (arc LEDs + 7-segment-style 
 | Color bands | **Green** near stoich / slightly rich-good; **amber** transition; **red** at rich and lean extremes |
 | Center | Large **one-decimal** numeric AFR |
 | Label | **AIR/FUEL RATIO** |
-| Face shape | **Square** panel; LED outer **flush to display L/T/R**; **rounded-square** inner aperture (~71% half — band ~30% thinner than first full-flush ring) for a large AFR readout; outer longer toward corners |
-| Caption | **AIR/FUEL RATIO** bottom-justified just above MODE/SEL |
+| Panel | **368×448** (ESP32-S3-Touch-AMOLED-1.8 class) — mockup canvas matches device pixels |
+| Face shape | LED outer **flush L/T/R**; **rounded-square** inner (~78% of half-width — band ~25% thinner again); large AFR readout |
+| Caption | **AIR/FUEL RATIO** under the numeric value |
+| Logging | **Text-free** status in the rail above MODE/SEL: pulsing **red LED** = logging on; dim ring = off (SEL toggles) |
 | Stoich mark | Segment at **~14.7** stays slightly highlighted even when not fill-lit |
-| Scale labels | Large readable ticks: **8 · 11 · 13 · 15 · 17 · 20** |
+| Scale labels | Readable ticks: **8 · 11 · 13 · 15 · 17 · 20** |
 | MODE / SEL | Large bottom bar (~18% height), two equal hit targets flush L/R/B; labels **MODE** / **SEL** only (no LIVE/TAP subtext) |
 
 ### Color band map (shipped mockup logic)
