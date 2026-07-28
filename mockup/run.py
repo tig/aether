@@ -168,8 +168,12 @@ def render_gauge_svg(
     L = _layout(w, h)
     cx, cy = L["cx"], L["cy"]
     n = len(state.segment_bands)
-    start_deg = 225.0
-    sweep_deg = 270.0
+    # Arc from bottom-left corner → bottom-right corner via top (8 and 20 on corners).
+    start_deg = math.degrees(math.atan2(-L["outer_half_h"], -L["outer_half_w"]))
+    end_deg = math.degrees(math.atan2(-L["outer_half_h"], L["outer_half_w"]))
+    if start_deg < 0:
+        start_deg += 360.0
+    sweep_deg = start_deg - end_deg
     stoich_i = _stoich_segment_index(n)
 
     parts: list[str] = [

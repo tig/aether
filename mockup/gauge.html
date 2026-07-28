@@ -127,7 +127,8 @@
     const AFR_MIN = 8.0;
     const AFR_MAX = 20.0;
     const AFR_STOICH = 14.7;
-    const SEGMENT_COUNT = 36;
+    // 35 segments: 8 and 20 sit on bottom corners (drop one vs 36).
+    const SEGMENT_COUNT = 35;
     const BAND_RICH_RED_LT = 11.5;
     const BAND_GREEN_LT = 15.0;
     const BAND_AMBER_LT = 15.8;
@@ -385,10 +386,20 @@
       }
     }
 
+    /** Arc from bottom-left corner to bottom-right corner via the top (degrees). */
+    function arcFromCorners(halfW, halfH) {
+      // Our ray: (cos a, -sin a) in screen space → atan2(sin, cos).
+      let startDeg = Math.atan2(-halfH, -halfW) * 180 / Math.PI; // bottom-left
+      const endDeg = Math.atan2(-halfH, halfW) * 180 / Math.PI;   // bottom-right
+      if (startDeg < 0) startDeg += 360; // e.g. ~214.5
+      // Decrease a from start → end through top: sweep = start - end
+      const sweepDeg = startDeg - endDeg;
+      return { startDeg, endDeg, sweepDeg };
+    }
+
     function drawAfrPage(ctx, L, state) {
       const { cx, cy } = L;
-      const startDeg = 225;
-      const sweepDeg = 270;
+      const { startDeg, sweepDeg } = arcFromCorners(L.outerHalfW, L.outerHalfH);
       const n = SEGMENT_COUNT;
       const litSet = new Set(state.litIndices);
 

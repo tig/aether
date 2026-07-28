@@ -5,7 +5,7 @@ code comments — do not invent nicknames.
 
 | Term | Meaning |
 |------|---------|
-| **dial** | The multi-segmented LED gauge ring (outer segments + rounded inner aperture). |
+| **dial** | The multi-segmented LED gauge ring (outer segments + rounded inner aperture). Segments run **corner-to-corner** (scale **8** and **20** at the bottom corners). |
 | **button labels** | On-screen **MODE** / **SEL** text naming the physical hard keys (not touch targets). |
 | **dial legend** | Scale marks on the dial: **8 · 11 · 13 · 15 · 17 · 20** (inside the aperture, not on the LED segments). |
 | **value** | The large numeric AFR readout (e.g. `14.7`). |

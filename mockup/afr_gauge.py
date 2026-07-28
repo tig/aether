@@ -17,7 +17,8 @@ from typing import Iterator, List, Optional, Sequence
 AFR_MIN = 8.0
 AFR_MAX = 20.0
 AFR_STOICH = 14.7
-SEGMENT_COUNT = 36
+# 35 segments: dial runs corner-to-corner (8 and 20 at bottom corners).
+SEGMENT_COUNT = 35
 
 # Band thresholds (AFR). Inclusive lower bound for each named band check.
 BAND_RICH_RED_LT = 11.5
