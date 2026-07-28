@@ -98,17 +98,15 @@ def _radius_to_rounded_square(ux: float, uy: float, half: float, corner: float) 
         t = half / ay
         if abs(t * ux) <= flat + 1e-9:
             return t
-    cx = (1.0 if ux >= 0 else -1.0) * flat
-    cy = (1.0 if uy >= 0 else -1.0) * flat
-    b = ux * cx + uy * cy
-    c = cx * cx + cy * cy - corner * corner
-    disc = b * b - c
+    # Solid includes the corner disk; exterior boundary is the far arc (larger root).
+    ccx = (1.0 if ux >= 0 else -1.0) * flat
+    ccy = (1.0 if uy >= 0 else -1.0) * flat
+    b = ux * ccx + uy * ccy
+    c0 = ccx * ccx + ccy * ccy - corner * corner
+    disc = b * b - c0
     if disc < 0:
         return half
-    root = math.sqrt(disc)
-    t1, t2 = b - root, b + root
-    if t1 > 1e-9:
-        return t1
+    t2 = b + math.sqrt(disc)
     if t2 > 1e-9:
         return t2
     return half

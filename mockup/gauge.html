@@ -207,19 +207,16 @@
         const t = half / ay;
         if (Math.abs(t * ux) <= flat + 1e-9) return t;
       }
-      // Corner quarter-circle (center at (±flat, ±flat) in the ray's quadrant)
-      const cx = Math.sign(ux || 1) * flat;
-      const cy = Math.sign(uy || 1) * flat;
-      // |t*d - C| = corner  →  t^2 - 2 t (d·C) + |C|^2 - R^2 = 0
-      const b = ux * cx + uy * cy; // d·C
-      const c = cx * cx + cy * cy - corner * corner;
-      const disc = b * b - c;
-      if (disc < 0) return half; // fallback
-      const t = b + Math.sqrt(disc); // farther root is outside; want positive exit
-      // Ray from origin inside shape: smaller positive root hits boundary first
-      const t1 = b - Math.sqrt(disc);
+      // Corner quarter-circle (center at (±flat, ±flat) in the ray's quadrant).
+      // Solid is the interior of the disk in the corner — exterior boundary is
+      // the far arc (larger root), not the near intersection.
+      const ccx = Math.sign(ux || 1) * flat;
+      const ccy = Math.sign(uy || 1) * flat;
+      const b = ux * ccx + uy * ccy; // d·C
+      const c0 = ccx * ccx + ccy * ccy - corner * corner;
+      const disc = b * b - c0;
+      if (disc < 0) return half;
       const t2 = b + Math.sqrt(disc);
-      if (t1 > 1e-9) return t1;
       if (t2 > 1e-9) return t2;
       return half;
     }
