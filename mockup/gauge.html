@@ -164,6 +164,11 @@
     let flashUntil = 0;
     let lastState = mapAfr(AFR_STOICH);
 
+    // Ring envelope: sides/top 30% smaller than full face half → more open center.
+    const OUTER_SCALE = 0.70;
+    // Larger rounded-square hole so AFR digits can grow.
+    const INNER_SCALE = 0.62;
+
     function layout(w, h) {
       const stripH = Math.round(h * BTN_STRIP_FRAC);
       const btnY = h - stripH;
@@ -172,12 +177,13 @@
       const half = w / 2;
       const cx = w / 2;
       const cy = half;
-      // Inner aperture: rounded square (half-side + corner radius), not a circle.
-      const innerHalf = half * 0.58;
+      const outerHalf = half * OUTER_SCALE;
+      const innerHalf = half * INNER_SCALE;
       const innerCorner = innerHalf * 0.28;
       return {
         w, h, stripH, btnY, half,
         cx, cy,
+        outerHalf,
         innerHalf,
         innerCorner,
         mode: { x: 0, y: btnY, w: btnW, h: btnH, id: "mode" },
@@ -221,16 +227,18 @@
       return half;
     }
 
-    /** Outer: sharp square face (L/T/R + button top). */
+    /** Outer: sharp square, 30% inset from full face (sides/top smaller). */
     function outerRadiusAt(a, L) {
       const dx = Math.cos(a);
       const dy = -Math.sin(a);
+      const oh = L.outerHalf;
+      // Virtual square [cx±oh] × [cy±oh], also stay above buttons.
       let rMax = Infinity;
-      if (dx > 1e-9) rMax = Math.min(rMax, (L.w - L.cx) / dx);
-      if (dx < -1e-9) rMax = Math.min(rMax, (0 - L.cx) / dx);
-      if (dy > 1e-9) rMax = Math.min(rMax, (L.btnY - L.cy) / dy);
-      if (dy < -1e-9) rMax = Math.min(rMax, (0 - L.cy) / dy);
-      return Math.max(8, rMax - 0.5);
+      if (dx > 1e-9) rMax = Math.min(rMax, oh / dx);
+      if (dx < -1e-9) rMax = Math.min(rMax, oh / -dx);
+      if (dy > 1e-9) rMax = Math.min(rMax, Math.min(oh, L.btnY - L.cy) / dy);
+      if (dy < -1e-9) rMax = Math.min(rMax, oh / -dy);
+      return Math.max(L.innerHalf + 4, rMax - 0.5);
     }
 
     /** Inner: rounded square aperture. */
@@ -320,8 +328,8 @@
         }
       }
 
-      // Scale marks — larger, just inside the rounded-square aperture
-      const labelPx = Math.max(18, Math.round(w * 0.058));
+      // Scale marks — just inside the rounded-square aperture
+      const labelPx = Math.max(16, Math.round(w * 0.052));
       ctx.fillStyle = "#c8c8d0";
       ctx.font = `600 ${labelPx}px Segoe UI, system-ui, sans-serif`;
       ctx.textAlign = "center";
@@ -329,32 +337,38 @@
       for (const mark of [8, 11, 13, 15, 17, 20]) {
         const t = (mark - AFR_MIN) / (AFR_MAX - AFR_MIN);
         const a = (startDeg - t * sweepDeg) * Math.PI / 180;
-        const r = Math.max(8, innerRadiusAt(a, L) - labelPx * 0.85);
+        const r = Math.max(8, innerRadiusAt(a, L) - labelPx * 0.75);
         const [x, y] = pt(r, a);
         ctx.fillText(String(mark), x, y);
       }
 
-      // Center readout
+      // Large center AFR readout (room opened by 30% smaller ring)
       const readout = state.valid ? state.display.toFixed(1) : "--.-";
-      const digitPx = Math.round(w * 0.20);
+      const digitPx = Math.round(w * 0.28);
       ctx.fillStyle = "#ff2a2a";
       ctx.font = `bold ${digitPx}px Consolas, ui-monospace, monospace`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.shadowColor = "rgba(255,40,40,0.4)";
-      ctx.shadowBlur = 10;
-      ctx.fillText(readout, cx, cy * 0.95);
+      ctx.shadowBlur = 12;
+      // Sit in upper-mid of the open aperture
+      const digitY = cy - L.innerHalf * 0.06;
+      ctx.fillText(readout, cx, digitY);
       ctx.shadowBlur = 0;
 
-      ctx.fillStyle = "#b8b8c0";
-      ctx.font = `600 ${Math.max(12, Math.round(w * 0.042))}px Segoe UI, sans-serif`;
-      ctx.fillText("AIR/FUEL RATIO", cx, cy * 0.95 + digitPx * 0.55);
-
-      // MODE / SEL — flush left, right, bottom; only the title on each button
+      // MODE / SEL first so label can sit just above them
       ctx.fillStyle = "#0a0a0c";
       ctx.fillRect(0, L.mode.y, w, L.stripH);
       drawButton(ctx, L.mode, "MODE", false);
       drawButton(ctx, L.sel, "SEL", selHold);
+
+      // AIR/FUEL RATIO — bottom-justified above the button bar
+      const captionPx = Math.max(13, Math.round(w * 0.045));
+      ctx.fillStyle = "#b8b8c0";
+      ctx.font = `600 ${captionPx}px Segoe UI, system-ui, sans-serif`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "bottom";
+      ctx.fillText("AIR/FUEL RATIO", cx, L.btnY - 6);
     }
 
     const canvas = document.getElementById("gauge");

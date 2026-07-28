@@ -51,13 +51,20 @@ def _segment_svg_color(band: str, lit: bool, *, stoich: bool = False) -> str:
     return "#1a1a1e"
 
 
+# Ring envelope: sides/top 30% smaller than full face half → more open center.
+OUTER_SCALE = 0.70
+# Larger rounded-square hole so AFR digits can grow.
+INNER_SCALE = 0.62
+
+
 def _layout(size: int = FACE_SIZE) -> dict:
     strip_h = round(size * BTN_STRIP_FRAC)
     btn_y = size - strip_h
     btn_h = strip_h
     btn_w = (size - BTN_GAP) / 2
     half = size / 2.0
-    inner_half = half * 0.58
+    outer_half = half * OUTER_SCALE
+    inner_half = half * INNER_SCALE
     return {
         "size": size,
         "strip_h": strip_h,
@@ -65,6 +72,7 @@ def _layout(size: int = FACE_SIZE) -> dict:
         "cx": half,
         "cy": half,
         "half": half,
+        "outer_half": outer_half,
         "inner_half": inner_half,
         "inner_corner": inner_half * 0.28,
         "mode": {
@@ -113,21 +121,21 @@ def _radius_to_rounded_square(ux: float, uy: float, half: float, corner: float) 
 
 
 def _outer_radius_at(a: float, L: dict) -> float:
-    """Ray from center to square L/T/R (and button-top) boundary — longer at corners."""
+    """Ray to inset square (30% smaller sides/top); longer toward corners."""
     dx = math.cos(a)
     dy = -math.sin(a)
-    w = L["size"]
+    oh = L["outer_half"]
     cx, cy = L["cx"], L["cy"]
     r_max = float("inf")
     if dx > 1e-9:
-        r_max = min(r_max, (w - cx) / dx)
+        r_max = min(r_max, oh / dx)
     if dx < -1e-9:
-        r_max = min(r_max, (0.0 - cx) / dx)
+        r_max = min(r_max, oh / -dx)
     if dy > 1e-9:
-        r_max = min(r_max, (L["btn_y"] - cy) / dy)
+        r_max = min(r_max, min(oh, L["btn_y"] - cy) / dy)
     if dy < -1e-9:
-        r_max = min(r_max, (0.0 - cy) / dy)
-    return max(8.0, r_max - 0.5)
+        r_max = min(r_max, oh / -dy)
+    return max(L["inner_half"] + 4.0, r_max - 0.5)
 
 
 def _inner_radius_at(a: float, L: dict) -> float:
@@ -181,11 +189,11 @@ def render_gauge_svg(state, size: int = FACE_SIZE) -> str:
         )
         parts.append(f'<polygon points="{" ".join(pts)}" fill="{color}"{stroke}/>')
 
-    label_px = max(18, round(w * 0.058))
+    label_px = max(16, round(w * 0.052))
     for mark, label in ((8, "8"), (11, "11"), (13, "13"), (15, "15"), (17, "17"), (20, "20")):
         t = (mark - AFR_MIN) / (AFR_MAX - AFR_MIN)
         ang = math.radians(start_deg - t * sweep_deg)
-        r = max(8.0, _inner_radius_at(ang, L) - label_px * 0.85)
+        r = max(8.0, _inner_radius_at(ang, L) - label_px * 0.75)
         x = cx + r * math.cos(ang)
         y = cy - r * math.sin(ang)
         parts.append(
@@ -194,19 +202,14 @@ def render_gauge_svg(state, size: int = FACE_SIZE) -> str:
             f'text-anchor="middle" dominant-baseline="middle">{label}</text>'
         )
 
-    digit_px = round(w * 0.20)
+    digit_px = round(w * 0.28)
+    digit_y = cy - L["inner_half"] * 0.06
     readout = state.readout()
     parts.append(
-        f'<text x="{cx}" y="{cy * 0.95:.1f}" fill="#ff2a2a" '
+        f'<text x="{cx}" y="{digit_y:.1f}" fill="#ff2a2a" '
         f'font-size="{digit_px}" font-weight="700" '
         f'font-family="Consolas, monospace" text-anchor="middle" '
         f'dominant-baseline="middle">{readout}</text>'
-    )
-    parts.append(
-        f'<text x="{cx}" y="{cy * 0.95 + digit_px * 0.55:.1f}" fill="#b8b8c0" '
-        f'font-size="{max(12, round(w * 0.042))}" font-weight="600" '
-        f'font-family="Segoe UI, Arial, sans-serif" text-anchor="middle">'
-        f"AIR/FUEL RATIO</text>"
     )
 
     # Bottom strip + flush MODE / SEL (title only)
@@ -226,6 +229,15 @@ def render_gauge_svg(state, size: int = FACE_SIZE) -> str:
             f'font-family="Segoe UI, Arial, sans-serif" text-anchor="middle" '
             f'dominant-baseline="middle">{b["label"]}</text>'
         )
+
+    # AIR/FUEL RATIO — bottom-justified just above the button bar
+    caption_px = max(13, round(w * 0.045))
+    parts.append(
+        f'<text x="{cx}" y="{L["btn_y"] - 6:.1f}" fill="#b8b8c0" '
+        f'font-size="{caption_px}" font-weight="600" '
+        f'font-family="Segoe UI, Arial, sans-serif" text-anchor="middle" '
+        f'dominant-baseline="auto">AIR/FUEL RATIO</text>'
+    )
 
     parts.append("</svg>")
     return "\n".join(parts)
