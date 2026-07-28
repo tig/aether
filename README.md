@@ -8,7 +8,9 @@ This repository is a product GCU (General Contact Unit) used with [Silico](https
 
 **Spec-learning mockup (this pass).** Host-runnable AFR gauge mockup with **simulated** AFR data — not live OBD/CAN, not full metal product acceptance. Use what the mockup teaches (square face, fat MODE/SEL, scale, color bands, refresh feel) to refine [spec.md](spec.md).
 
-Contract seed: [spec.md](spec.md). Host path: [install/README.md](install/README.md).
+Contract seed: [spec.md](spec.md).  
+**AFR face (reimplement from this):** [specs/afr-face.md](specs/afr-face.md) · lexicon [specs/lexicon.md](specs/lexicon.md).  
+Host path: [install/README.md](install/README.md).
 
 ## Hardware
 

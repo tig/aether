@@ -27,40 +27,22 @@ On the workbench and in the vehicle, Aether should eventually:
 | Link | USB Type-C (CDC) |
 | Listing | [Amazon B0F242GFHK](https://www.amazon.com/dp/B0F242GFHK) |
 
-## Product face (AFR gauge) — mockup learnings
+## Product face (AFR gauge)
 
-Reference visual: commercial 52 mm digital wideband (arc LEDs + 7-segment-style digits). Host mockup captures:
+**Normative reimplementation contract:** [specs/afr-face.md](specs/afr-face.md)  
+**Lexicon:** [specs/lexicon.md](specs/lexicon.md)
 
-| Trait | Choice (mockup → refine) |
-|-------|---------------------------|
-| Scale | **8.0 – 20.0** AFR (gasoline lambda framing) |
-| Stoich reference | ~**14.7** |
-| Arc | Discrete **LED-style segments** around the dial |
-| Color bands | **Green** near stoich / slightly rich-good; **amber** transition; **red** at rich and lean extremes |
-| Center | Large **one-decimal** numeric AFR |
-| Label | **AIR/FUEL RATIO** |
-| Panel | Native **368×448**; product UI is **landscape 448×368** with USB + hard buttons on the **top** edge |
-| Face lexicon | [specs/lexicon.md](specs/lexicon.md): **dial**, **button labels**, **dial legend**, **value**, **value legend**, **swipe indicator**, **status indicators** |
-| Dial | Multi-segment LED ring; outer fills full width and full height under **button labels** (to face bottom); constant band thickness |
-| Button labels | **MODE** / **SEL** — physical keys only, not touch targets |
-| Dial legend | **8 · 11 · 13 · 15 · 17 · 20** inside the aperture (not on the LED segments) |
-| Value / value legend | Large AFR **value**; **AIR/FUEL RATIO** under it |
-| Status indicators | Logging **red LED** centered at top between button labels |
-| Swipe indicator | Page dots overlaid at bottom — swipe left/right |
-| Stoich mark | Segment at **~14.7** stays slightly highlighted even when not fill-lit |
-| MODE / SEL | Large bottom bar (~18% height), two equal hit targets flush L/R/B; labels **MODE** / **SEL** only (no LIVE/TAP subtext) |
+Host mockup (`mockup/`) is the working reference for landscape 448×368 face layout, dial geometry, colors, and type. Agents rebuilding the face must follow **afr-face.md** and prove the result with `python -m mockup.capture` + visual inspect — not code-only claims.
 
-### Color band map (shipped mockup logic)
+Summary (see afr-face for numbers):
 
-| AFR range | Band | Meaning (operator) |
-|-----------|------|---------------------|
-| `< 11.5` | red | Rich |
-| `11.5 – 15.0` | green | Good / stoich / slightly rich |
-| `15.0 – 15.8` | amber | Lean of stoich |
-| `> 15.8` | red | Lean |
-| out of `[8, 20]` | invalid (clamped display, marked invalid) | Sensor/sim fault |
-
-Segment count and exact thresholds are **mockup defaults** — refine after bench feel.
+| Trait | Contract |
+|-------|----------|
+| Panel UI | Landscape **448×368**; native panel 368×448; hard buttons on **top** |
+| Regions | **Banner** (MODE · log LED · SEL) + **dial** full width/height under banner + **swipe indicator** overlay |
+| Dial | 35 segments, corner-to-corner (8 / 20 at bottom corners); constant band thickness |
+| Value | Large one-decimal AFR + **AIR/FUEL RATIO** value legend |
+| Bands | Red rich / green stoich / amber / red lean (thresholds in afr-face) |
 
 ## Runtime
 
