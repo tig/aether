@@ -110,7 +110,7 @@ TuneDocument
     firmware_signature  # string from ECU / INI signature=
     firmware_version    # optional human version string
     definition_id       # stable id for the INI (name + version)
-    definition_hash     # SHA-256 of canonicalized definition bytes
+    definition_hash     # SHA-256 of definition file bytes (see D6)
     captured_at         # UTC
     source              # ecu_live | msq_file | host_import | simulated
   constraints:          # from definition + product policy
@@ -198,7 +198,7 @@ Scalar / Curve — analogous (name, unit, value(s), bounds, definition_name)
 │  • INI / ECU definition file                            │
 │  • signature, page layout, constant types               │
 │  • scales, units, min/max, TableEditor bindings         │
-│  • definition_hash = H(canonical definition)            │
+│  • definition_hash = SHA-256(exact definition file bytes) │
 └───────────────────────────┬─────────────────────────────┘
                             │ binds
 ┌───────────────────────────▼─────────────────────────────┐
@@ -222,8 +222,10 @@ Scalar / Curve — analogous (name, unit, value(s), bounds, definition_name)
 | D1 | **No write** without a loaded definition that matches live `firmware_signature` (or explicit offline-edit mode that cannot burn). |
 | D2 | Store **`definition_hash`** with every TuneDocument and every backup. |
 | D3 | On connect: query signature → select definition → recompute hash → compare to last session; mismatch → reconnect flow, refuse cached writes. |
-| D4 | Definitions may ship with Aether (known Speeduino INIs), come from host (#1), or (later) from ECU mass-storage (rusEFI-style). Source recorded in provenance. |
+| D4 | Definitions may ship with Aether (known FOME/Speeduino INIs), come from host (#1), or (later) from ECU mass-storage (rusEFI-style). Source recorded in provenance. |
+| D4a | **Host-supplied definitions are untrusted for live write until pinned.** A first-seen INI that merely *claims* the live `firmware_signature` **must not** alone enable RAM write or burn. Require one of: (1) **shipped trust list** `signature → definition_hash` (or equivalent pack id), (2) **operator pin** (“trust this definition for this ECU” → stored pin: signature + hash + source), or (3) **read-only mode** until pin. After pin, D1–D3 apply as usual. |
 | D5 | Product **must not** invent constant layouts by guessing page dumps. |
+| D6 | **`definition_hash` input bytes (canonicalization):** default **SHA-256 over the exact byte sequence of the definition file as distributed/stored** (no line-ending rewrite, no comment strip, no conditional expansion before hash). If the product later supports “logically equivalent” INIs, it **must** publish a separate normative canonicalization algorithm and a schema version; until then, **bit-identical file bytes** are the only portable authority. Host and device **must** hash the same stored blob. |
 
 ### 4.2 Data rules (must)
 
@@ -269,7 +271,7 @@ Writes are staged:
 | **3. Dry-run** | Apply patch to **local ATM copy**; show diff | Yes |
 | **4. RAM commit** | Page `w` (or family equivalent); **no burn** | Human confirm **must** for agent |
 | **5. Readback** | Re-read affected ranges; compare | **Must** after RAM commit |
-| **6. Burn** | `b` / family burn to non-volatile | **Separate** confirm; never bundled silently with step 4 |
+| **6. Burn** | `b` / family burn to non-volatile | **Human-only invoke** (see S5); never bundled with step 4; never callable as an agent-owned RPC |
 | **7. Post-burn verify** | Re-read or page CRC | **Should** |
 
 ### 5.3 Burn vs RAM (must document in UX and API)
@@ -286,10 +288,11 @@ Flash wear: TS-class docs note finite burn cycles (~100k class on classic MS). A
 
 After any RAM commit of a table region:
 
-1. Readback the **same byte range**.  
-2. Decode to engineering units.  
-3. Compare within definition `digits` tolerance.  
-4. On mismatch → mark session **write_fault**, refuse further writes until operator resolves, retain backup.
+1. Readback the **same raw byte range** that was written (page/offset/length).  
+2. **Primary compare: raw octets** — expected encoded bytes (after Aether’s scale/pack toward the ECU) vs re-read bytes. **Pass only on exact match**, unless the ECU family documents a normalization (e.g. forced alignment) — then compare against the **post-normalize expected raw**, not against display rounding.  
+3. **Do not** use INI `digits` as a readback tolerance. `digits` is **display** decimal precision only; using it as ε can accept multi-count raw corruption or reject valid quantized values.  
+4. Optional secondary: decode to engineering units for UX diff only — **not** the safety gate.  
+5. On raw mismatch → mark session **write_fault**, refuse further writes until operator resolves, retain backup.
 
 ### 5.5 Capability matrix (map R/W)
 
@@ -441,9 +444,9 @@ This section is **in scope for the plan**; **out of scope for implementation** o
 |-------|---------------|-----------|------|-----------------|-----------|-------------------|
 | Human (on-device later) | Yes | Confirm | Confirm | Policy | Yes | Yes |
 | Human (host tool) | Yes | Confirm | Confirm | Policy | Yes | Yes |
-| LLM agent | Yes | **Must** human confirm | **Must** separate human confirm | **Default deny** | Allowlist | Allowlist |
+| LLM agent | Yes | **Only via human-minted RAM token** (agent never self-confirms) | **Forbidden** — agent **must not** call burn; may **request** burn text for a human to invoke separately | **Default deny** | Allowlist | Allowlist |
 
-“Confirm” may be: physical button on Aether, host UI checkbox, or explicit high-assurance token — product UX later; **API must require a confirm handle**.
+**S5 consistency:** the LLM **cannot burn at all** (not even with a token the agent holds). Burn is always a **human-initiated** operation after the human has reviewed RAM state (and typically after agent RAM work used a human-minted, single-use RAM token). “Confirm” for RAM may be: physical button on Aether, host UI checkbox, or high-assurance token — product UX later; **API must require a scoped confirm handle** (§11).
 
 ### 7.4 Failure and rollback
 
@@ -477,7 +480,7 @@ Device **must** re-check definition_hash and confirm token even if host already 
 | S2 | **Backup-before-write** — full tune backup stored (device and/or host) before first RAM write in a mutating session. |
 | S3 | **Readback-after-write** — required for automated and human paths. |
 | S4 | **Burn is explicit** — never implied by “apply patch”. |
-| S5 | **Agent confirm** — LLM cannot burn; cannot RAM-write without human confirm handle. |
+| S5 | **Agent boundaries** — LLM **cannot burn** (no agent-callable burn path). LLM cannot RAM-write without a **human-minted, single-use** confirm token scoped to that patch (§11). Agent may only *propose* that a human burn. |
 | S6 | **Allowlists** — first LLM apply surface is fuel-related tables only (VE, AFR/λ target); ignition advance increases denied by default. |
 | S7 | **Audit log** — patch_id, actor, timestamps, diff summary, success/fail retained with session. |
 | S8 | **No silent full-flash** — full page image write only as restore-from-backup with confirm. |
@@ -548,17 +551,30 @@ Device **must** re-check definition_hash and confirm token even if host already 
 Not binding code — shapes for future `specs/inputs.md` / host IPC.
 
 ```text
-tune.get_identity() -> { signature, definition_hash, ecu_family }
+tune.get_identity() -> { signature, definition_hash, ecu_family, definition_pin_state }
+tune.pin_definition(operator_confirm) -> { definition_hash, signature }   # human only
 tune.backup() -> TuneDocument id
 tune.read_tables([ids]) -> AMP
 tune.diff(doc_a, doc_b) -> structured diff
 tune.validate_patch(MapPatch) -> { ok, errors[], dry_run_diff }
 tune.apply_patch(MapPatch, confirm_token, mode=ram|dry_run) -> result
+  # dry_run: no token. ram: token required; actor may be agent *holding* a human-minted token
 tune.burn(confirm_token, pages?) -> result
+  # human actor only — reject if actor=agent even with a token
 tune.restore(backup_id, confirm_token, burn:bool) -> result
+  # burn=true requires human + burn-scoped token; never agent
 ```
 
-All mutate methods **must** accept and check `confirm_token` for non-dry-run paths when actor is agent; human local UI may mint tokens.
+#### Confirm token rules (must)
+
+| Rule | Requirement |
+|------|-------------|
+| T1 | Token is **minted only by a human path** (device UI, host UI, or out-of-band operator). Agents **request**; they **do not mint**. |
+| T2 | Each token is bound to **all** of: `session_id`, `operation` ∈ {`ram_apply`,`burn`,`restore_ram`,`restore_burn`}, `patch_id` and/or `document_hash`, **affected page set**, `definition_hash`. |
+| T3 | **Single use** — successful consume invalidates the token; failed attempt **should** invalidate or decrement a tight attempt budget. |
+| T4 | **Expiry** — short TTL (recommend ≤ 5 minutes idle; exact value product policy). |
+| T5 | A token minted for **`ram_apply` must not** authorize **`burn`**, restore, or a different patch/document hash. Burn requires a **separately minted** `burn` token after human review of post-RAM state. |
+| T6 | Device **must** re-validate token binding server-side (or on-GCU); host-supplied “trust me” flags are ignored. |
 
 ---
 
