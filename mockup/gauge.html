@@ -122,7 +122,7 @@
     const BAND_FRAC = 0.14 * 1.1;
     const PAGE_COUNT = 3;
     // Type from min(inner half-axes). Value +20% again on prior scale.
-    const AFR_DIGIT_OF_HALF = 0.58 * 1.5 * 1.1 * 1.2 * 1.2;  // value
+    const AFR_DIGIT_OF_HALF = 0.58 * 1.5 * 1.1 * 1.2 * 1.2 * 1.2;  // value (+20% again)
     const TICK_OF_HALF = 0.16 * 1.5;                         // dial legend
     const CAPTION_OF_HALF = 0.12 * 1.5;                      // value legend
     const HARD_LABEL_OF_CHROME = 0.42;                       // button labels
@@ -443,7 +443,7 @@
       const valueGap = Math.round(digitPx * 0.18);
       const blockH = digitPx + valueGap + captionPx;
       // Nudge down from geometric center so the pair sits lower in the hole.
-      const centerNudge = Math.min(L.innerHalfH, L.half) * 0.10;
+      const centerNudge = Math.min(L.innerHalfH, L.half) * 0.18;
       const digitY = cy - blockH / 2 + digitPx / 2 + centerNudge;
       const captionY = digitY + digitPx / 2 + valueGap;
 

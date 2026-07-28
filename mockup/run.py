@@ -39,7 +39,7 @@ SWIPE_DOTS_Y_FROM_BOTTOM = 14
 BAND_FRAC = 0.14 * 1.1  # dial segments +10% (wider sides / taller top)
 PAGE_COUNT = 3
 # Type as fractions of min(inner half-axes).
-AFR_DIGIT_OF_HALF = 0.58 * 1.5 * 1.1 * 1.2 * 1.2  # value (+20% again)
+AFR_DIGIT_OF_HALF = 0.58 * 1.5 * 1.1 * 1.2 * 1.2 * 1.2  # value (+20% again)
 TICK_OF_HALF = 0.16 * 1.5  # dial legend
 CAPTION_OF_HALF = 0.12 * 1.5  # value legend
 HARD_LABEL_OF_CHROME = 0.42  # button labels
@@ -274,7 +274,7 @@ def render_gauge_svg(
         caption_px = max(12, round(half * CAPTION_OF_HALF))
         value_gap = round(digit_px * 0.18)
         block_h = digit_px + value_gap + caption_px
-        center_nudge = min(L["inner_half_h"], half) * 0.10
+        center_nudge = min(L["inner_half_h"], half) * 0.18
         digit_y = cy - block_h / 2.0 + digit_px / 2.0 + center_nudge
         caption_y = digit_y + digit_px / 2.0 + value_gap
         parts.append(
