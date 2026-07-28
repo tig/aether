@@ -21,7 +21,7 @@ On the workbench and in the vehicle, Aether should eventually:
 | Fact | Value |
 |------|--------|
 | MCU | ESP32-S3R8 |
-| Display | 1.8″ AMOLED, **368×448** portrait |
+| Display | 1.8″ AMOLED touch; treat **product face as square** (layout for equal width/height; crop/letterbox if panel is slightly taller) |
 | Panel | SH8601 (QSPI) |
 | Touch | FT3168 (I2C) |
 | Link | USB Type-C (CDC) |
@@ -39,7 +39,8 @@ Reference visual: commercial 52 mm digital wideband (arc LEDs + 7-segment-style 
 | Color bands | **Green** near stoich / slightly rich-good; **amber** transition; **red** at rich and lean extremes |
 | Center | Large **one-decimal** numeric AFR |
 | Label | **AIR/FUEL RATIO** |
-| Portrait constraint | Board is **368×448**; mockup may use square/circular face; metal layout must fit AMOLED without chrome packaging art |
+| Face shape | **Square** panel layout — not a round 52 mm bezel clone. Arc + readout in upper region; corners of the square stay in frame |
+| MODE / SEL | **Large bottom touch bar** (~22% of face height), two equal hit targets with gap — big enough for a finger on a ~1.8″ panel (not chrome pin dots) |
 
 ### Color band map (shipped mockup logic)
 
@@ -80,5 +81,6 @@ Segment count and exact thresholds are **mockup defaults** — refine after benc
 - CAN bus transceiver hardware on this board or external?
 - Which ECU protocols first (ISO-TP OBD, manufacturer CAN)?
 - Logger media (SPIFFS / SD / host pull)?
-- Touch roles on the gauge (MODE/SEL vs Aether-specific)?
+- MODE cycles (LIVE / PEAK / AVG mockup) vs real product modes; SEL hold/freeze vs menu?
+- Exact panel pixel size if not 1:1 square (letterbox vs stretch)?
 - Lambda units toggle (AFR vs λ)?

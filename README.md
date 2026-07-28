@@ -6,7 +6,7 @@ This repository is a product GCU (General Contact Unit) used with [Silico](https
 
 ## Status
 
-**Spec-learning mockup (this pass).** Host-runnable AFR gauge mockup with **simulated** AFR data — not live OBD/CAN, not full metal product acceptance. Use what the mockup teaches (scale, color bands, refresh feel, 368×448 portrait constraints) to refine [spec.md](spec.md).
+**Spec-learning mockup (this pass).** Host-runnable AFR gauge mockup with **simulated** AFR data — not live OBD/CAN, not full metal product acceptance. Use what the mockup teaches (square face, fat MODE/SEL, scale, color bands, refresh feel) to refine [spec.md](spec.md).
 
 Contract seed: [spec.md](spec.md). Host path: [install/README.md](install/README.md).
 
@@ -20,7 +20,7 @@ Contract seed: [spec.md](spec.md). Host path: [install/README.md](install/README
 
 ## AFR gauge mockup (host)
 
-Simulated air–fuel ratio stream drives a circular arc gauge in the manner of a 52 mm digital wideband: LED-style arc segments (green → amber → red), scale **8–20**, large center readout (one decimal), **AIR/FUEL RATIO** label.
+Simulated air–fuel ratio on a **square** device face (not a round aftermarket bezel): LED-style arc in the upper region, scale **8–20**, large center readout, **AIR/FUEL RATIO** label, and a **fat bottom bar** with tappable **MODE** / **SEL** targets sized for a tiny touch AMOLED.
 
 ```text
 # From the aether product root (Python 3.11+)
