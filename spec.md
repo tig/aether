@@ -7,6 +7,7 @@
 | [specs/spec.md](specs/spec.md) | Mission, hardware, value requirements (HW + SW) |
 | [specs/afr-face.md](specs/afr-face.md) | **AFR screen only** |
 | [specs/lexicon.md](specs/lexicon.md) | Phrase book |
+| [specs/inputs.md](specs/inputs.md) | Live serial-class inputs (USB / UART / BT / Wi-Fi); CAN later |
 
 ![Aether AFR face host mockup](docs/images/afr-face-mockup.gif)
 
