@@ -82,7 +82,10 @@
     Panel native 368×448; product face is <strong>landscape</strong> with hard buttons
     on the top edge (MODE / SEL are labels only). Red LED = logging. Bottom dots = swipe pages.
   </p>
-  <p class="size-note">Rendered at ~1.8″ diagonal (physical panel size). Logging LED starts off, then turns on.</p>
+  <p class="size-note">
+    ~1.8″ physical size. Scripted demo: off → idle 750 → pull to 3rd (WOT, rev-limiter) → cruise.
+    WOT text is blue; RPM goes red ≥6000 and flashes above 6200.
+  </p>
   <div class="device">
     <canvas id="gauge" width="448" height="368" aria-label="Aether AFR gauge landscape 448 by 368"></canvas>
   </div>
@@ -200,32 +203,110 @@
       return { afr, display, valid, band, litCount, litIndices, segmentBands };
     }
 
-    let holdTarget = null;
-    let holdRemaining = 0;
-    let simRpm = 2200;
-    let simTps = 18; // 0..100; 100 → WOT
-    function nextSimAfr() {
-      if (holdRemaining > 0) {
-        holdRemaining--;
-        return holdTarget + (Math.random() - 0.5) * 0.3;
-      }
-      if (Math.random() < 0.06) {
-        holdTarget = Math.random() < 0.5 ? 11.0 : 17.5;
-        holdRemaining = 4 + Math.floor(Math.random() * 6);
-        return holdTarget;
-      }
-      return AFR_STOICH + (Math.random() - 0.5) * 0.7;
+    // --- Scripted drive demo -------------------------------------------------
+    // Timeline (loops): off → start/idle 750 → pull 1–2 → 2nd WOT to rev-limiter
+    // → shift 3rd → 3rd WOT 5s → cruise. Tick ~180ms. Redline 6200.
+    const REDLINE_RPM = 6200;
+    const RPM_WARN_RPM = 6000;
+    const DEMO_LOOP_S = 30;
+
+    function lerp(a, b, u) {
+      const t = Math.max(0, Math.min(1, u));
+      return a + (b - a) * t;
     }
-    function nextSimRpmTps() {
-      // Correlated wander: throttle up → RPM up (host mock only).
-      simTps = Math.max(0, Math.min(100, simTps + (Math.random() - 0.48) * 8));
-      const targetRpm = 800 + simTps * 55 + (Math.random() - 0.5) * 200;
-      simRpm = Math.max(700, Math.min(7200, simRpm * 0.85 + targetRpm * 0.15));
-      return { rpm: Math.round(simRpm), tps: simTps };
+    function smoothstep(u) {
+      const t = Math.max(0, Math.min(1, u));
+      return t * t * (3 - 2 * t);
     }
+    function phaseU(t, t0, t1) {
+      if (t1 <= t0) return 1;
+      return Math.max(0, Math.min(1, (t - t0) / (t1 - t0)));
+    }
+
+    /** Scripted sample at timeSec. Returns { rpm, tps, afr, afrValid, logging }. */
+    function demoSample(timeSec) {
+      const t = ((timeSec % DEMO_LOOP_S) + DEMO_LOOP_S) % DEMO_LOOP_S;
+      let rpm = 0;
+      let tps = 0;
+      let afr = 14.7;
+      let afrValid = true;
+      let logging = t >= 2.0;
+
+      if (t < 2.0) {
+        // Car off
+        rpm = 0; tps = 0; afrValid = false; afr = 14.7;
+      } else if (t < 3.2) {
+        // Crank / fire
+        const u = smoothstep(phaseU(t, 2.0, 3.2));
+        rpm = lerp(0, 1100, u) + Math.sin(t * 40) * 40 * (1 - u);
+        tps = 0;
+        afr = lerp(16.5, 13.2, u);
+      } else if (t < 5.5) {
+        // Idle settle ~750
+        const u = smoothstep(phaseU(t, 3.2, 5.5));
+        rpm = lerp(1100, 750, u) + Math.sin(t * 12) * 15;
+        tps = 0;
+        afr = lerp(13.2, 14.6, u) + Math.sin(t * 3) * 0.05;
+      } else if (t < 8.0) {
+        // Pull away 1st → 2nd
+        const u = smoothstep(phaseU(t, 5.5, 8.0));
+        tps = lerp(12, 55, u);
+        if (u < 0.5) rpm = lerp(750, 3800, u / 0.5);
+        else if (u < 0.62) rpm = lerp(3800, 2200, (u - 0.5) / 0.12);
+        else rpm = lerp(2200, 4200, (u - 0.62) / 0.38);
+        afr = lerp(14.5, 12.8, u) + Math.sin(t * 5) * 0.08;
+      } else if (t < 11.2) {
+        // 2nd WOT to rev-limiter
+        const u = phaseU(t, 8.0, 11.2);
+        tps = 100;
+        if (u < 0.85) {
+          rpm = lerp(4200, REDLINE_RPM + 80, smoothstep(u / 0.85));
+        } else {
+          rpm = REDLINE_RPM + 40 + Math.sin(t * 55) * 120; // limiter chatter
+        }
+        afr = 12.4 + Math.sin(t * 8) * 0.12;
+      } else if (t < 12.0) {
+        // Shift 2→3 (still WOT)
+        const u = smoothstep(phaseU(t, 11.2, 12.0));
+        tps = 100;
+        rpm = lerp(REDLINE_RPM, 4100, u);
+        afr = lerp(12.4, 12.6, u);
+      } else if (t < 17.0) {
+        // 3rd WOT for 5s after shift
+        const u = phaseU(t, 12.0, 17.0);
+        tps = 100;
+        rpm = lerp(4100, 5800, smoothstep(u));
+        afr = 12.5 + Math.sin(t * 6) * 0.1;
+      } else {
+        // Cruise
+        const u = smoothstep(phaseU(t, 17.0, 22.0));
+        tps = lerp(100, 18, Math.min(1, u * 1.4));
+        rpm = lerp(5800, 2400, Math.min(1, u * 1.2)) + Math.sin(t * 2) * 30;
+        afr = lerp(12.6, 14.7, u) + Math.sin(t * 2.5) * 0.06;
+      }
+
+      return {
+        rpm: Math.max(0, Math.round(rpm)),
+        tps: Math.max(0, Math.min(100, tps)),
+        afr,
+        afrValid,
+        logging,
+      };
+    }
+
     function formatTps(tps) {
       if (tps >= 98) return "WOT";
       return `${Math.round(tps)}%`;
+    }
+    function rpmColor(rpm, nowMs) {
+      if (rpm > REDLINE_RPM) {
+        return (Math.floor(nowMs / 120) % 2 === 0) ? "#ff2222" : "#ffcccc";
+      }
+      if (rpm >= RPM_WARN_RPM) return "#ff2222";
+      return "#f0f0f4";
+    }
+    function tpsColor(tps) {
+      return tps >= 98 ? "#3b82f6" : "#f0f0f4"; // WOT text blue
     }
 
     const COLORS = {
@@ -246,9 +327,7 @@
     }
     const STOICH_SEG = stoichSegmentIndex();
 
-    // Two prototype instances: logging ON (bright LED) and OFF (dim red LED).
     let page = 0; // 0 = AFR gauge (swipe pages)
-    let lastState = mapAfr(AFR_STOICH);
 
     /**
      * Banner → dial (~70% under banner) → aux strip (~30% RPM/TPS).
@@ -423,7 +502,7 @@
       const { cx, cy } = L;
       const { startDeg, sweepDeg } = arcFromCorners(L.outerHalfW, L.outerHalfH);
       const n = SEGMENT_COUNT;
-      const litSet = new Set(state.litIndices);
+      const litSet = new Set(state.litIndices || []);
 
       function pt(r, a) {
         return [cx + r * Math.cos(a), cy - r * Math.sin(a)];
@@ -543,11 +622,13 @@
       // Slightly lower in the aux zone (numbers sit closer to their legends).
       const midY = L.auxTop + (legBaseline - legPx - L.auxTop) * 0.58;
 
+      const nowMs = performance.now();
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.fillStyle = "#f0f0f4";
       ctx.font = `bold ${numPx}px Consolas, ui-monospace, monospace`;
-      ctx.fillText(String(rpm), leftX, midY);
+      ctx.fillStyle = rpmColor(rpm, nowMs);
+      ctx.fillText(rpm > 0 ? String(rpm) : "0", leftX, midY);
+      ctx.fillStyle = tpsColor(tps);
       ctx.fillText(formatTps(tps), rightX, midY);
 
       ctx.fillStyle = "#b0b0bc";
@@ -605,12 +686,12 @@
     const ctx = canvas.getContext("2d");
     const meta = document.getElementById("meta");
 
-    // Logging starts OFF; turns ON after a short demo delay.
+    const TICK_MS = 180;
+    let demoT0 = performance.now();
     let logging = false;
-    let tickN = 0;
-    let lastRpm = 2200;
-    let lastTps = 18;
-    const LOG_ON_AFTER_TICKS = 12; // ~2s at 180ms/tick
+    let lastRpm = 0;
+    let lastTps = 0;
+    let lastState = mapAfr(0); // car off: invalid AFR
 
     function canvasPoint(clientX, clientY) {
       const rect = canvas.getBoundingClientRect();
@@ -642,23 +723,38 @@
     canvas.addEventListener("pointercancel", () => { ptrDown = null; });
 
     function updateMeta() {
+      const t = ((performance.now() - demoT0) / 1000) % DEMO_LOOP_S;
       meta.textContent =
-        `AFR ${lastState.display.toFixed(2)}  RPM ${lastRpm}  TPS ${formatTps(lastTps)}` +
+        `t=${t.toFixed(1)}s  AFR ${lastState.valid ? lastState.display.toFixed(2) : "--.-"}` +
+        `  RPM ${lastRpm}  TPS ${formatTps(lastTps)}` +
         `  page=${page + 1}/${PAGE_COUNT}` +
-        (logging ? "  LOG●" : "  LOG○") +
-        (lastState.valid ? "" : "  INVALID");
+        (logging ? "  LOG●" : "  LOG○");
     }
 
     function tick() {
-      tickN += 1;
-      if (!logging && tickN >= LOG_ON_AFTER_TICKS) logging = true;
-      lastState = mapAfr(nextSimAfr());
-      const rt = nextSimRpmTps();
-      lastRpm = rt.rpm;
-      lastTps = rt.tps;
+      const timeSec = (performance.now() - demoT0) / 1000;
+      const s = demoSample(timeSec);
+      lastRpm = s.rpm;
+      lastTps = s.tps;
+      logging = s.logging;
+      if (s.afrValid) {
+        lastState = mapAfr(s.afr);
+      } else {
+        // Car off / sensor not valid — empty needle, dashed readout
+        const base = mapAfr(14.7);
+        lastState = {
+          afr: s.afr,
+          display: 14.7,
+          valid: false,
+          band: "invalid",
+          litCount: 0,
+          litIndices: [],
+          segmentBands: base.segmentBands,
+        };
+      }
       drawGauge(ctx, lastState, logging, lastRpm, lastTps);
       updateMeta();
-      requestAnimationFrame(() => setTimeout(tick, 180));
+      requestAnimationFrame(() => setTimeout(tick, TICK_MS));
     }
     tick();
   </script>
