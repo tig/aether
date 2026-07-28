@@ -29,14 +29,17 @@ from .afr_gauge import (
 # are on the TOP edge → logical UI size 448×368.
 FACE_W = 448
 FACE_H = 368
-TOP_CHROME = 60
-# Dial uses full height under chrome; swipe indicator overlays bottom (no dead strip).
+BANNER_H = 60  # top strip: button labels + status indicators
+TOP_CHROME = BANNER_H
+BANNER_BG = "#1a2433"
+BANNER_EDGE = "#2a3a52"
+# Dial uses full height under banner; swipe indicator overlays bottom.
 SWIPE_DOTS_Y_FROM_BOTTOM = 14
 # Constant band thickness vs shorter content half (mid-side width == mid-top height).
 BAND_FRAC = 0.14 * 1.1  # dial segments +10% (wider sides / taller top)
 PAGE_COUNT = 3
 # Type as fractions of min(inner half-axes).
-AFR_DIGIT_OF_HALF = 0.58 * 1.5 * 1.1 * 1.2  # value (+20% on prior)
+AFR_DIGIT_OF_HALF = 0.58 * 1.5 * 1.1 * 1.2 * 1.2  # value (+20% again)
 TICK_OF_HALF = 0.16 * 1.5  # dial legend
 CAPTION_OF_HALF = 0.12 * 1.5  # value legend
 HARD_LABEL_OF_CHROME = 0.42  # button labels
@@ -180,19 +183,22 @@ def render_gauge_svg(
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{w}" height="{h}" '
         f'viewBox="0 0 {w} {h}">',
         f'<rect width="100%" height="100%" fill="#050508"/>',
-        f'<rect x="0" y="0" width="{w}" height="{TOP_CHROME}" fill="#08080c"/>',
+        # Banner (lexicon): distinct from dial face; light labels stay legible.
+        f'<rect x="0" y="0" width="{w}" height="{TOP_CHROME}" fill="{BANNER_BG}"/>',
+        f'<line x1="0" y1="{TOP_CHROME - 0.5}" x2="{w}" y2="{TOP_CHROME - 0.5}" '
+        f'stroke="{BANNER_EDGE}" stroke-width="1"/>',
     ]
 
     # Hard-button labels (not touch targets)
     label_px = max(16, round(TOP_CHROME * HARD_LABEL_OF_CHROME))
     parts.append(
-        f'<text x="{L["mode_x"]}" y="{L["chrome_y"]}" fill="#e0e0e6" '
+        f'<text x="{L["mode_x"]}" y="{L["chrome_y"]}" fill="#e8eef8" '
         f'font-size="{label_px}" font-weight="700" '
         f'font-family="Segoe UI, Arial, sans-serif" text-anchor="start" '
         f'dominant-baseline="middle">MODE</text>'
     )
     parts.append(
-        f'<text x="{L["sel_x"]}" y="{L["chrome_y"]}" fill="#e0e0e6" '
+        f'<text x="{L["sel_x"]}" y="{L["chrome_y"]}" fill="#e8eef8" '
         f'font-size="{label_px}" font-weight="700" '
         f'font-family="Segoe UI, Arial, sans-serif" text-anchor="end" '
         f'dominant-baseline="middle">SEL</text>'
@@ -260,15 +266,16 @@ def render_gauge_svg(
                 f'text-anchor="middle" dominant-baseline="middle">{label}</text>'
             )
 
-        # Value (+20%) + value legend; block vertically centered in the aperture.
+        # Value (+20% again) + value legend; centered then nudged down in aperture.
         digit_px = min(
             round(half * AFR_DIGIT_OF_HALF),
-            round(min(L["inner_half_w"], L["inner_half_h"]) * 0.78),
+            round(min(L["inner_half_w"], L["inner_half_h"]) * 0.82),
         )
         caption_px = max(12, round(half * CAPTION_OF_HALF))
         value_gap = round(digit_px * 0.18)
         block_h = digit_px + value_gap + caption_px
-        digit_y = cy - block_h / 2.0 + digit_px / 2.0
+        center_nudge = min(L["inner_half_h"], half) * 0.10
+        digit_y = cy - block_h / 2.0 + digit_px / 2.0 + center_nudge
         caption_y = digit_y + digit_px / 2.0 + value_gap
         parts.append(
             f'<text x="{cx}" y="{digit_y:.1f}" fill="#ff2a2a" '

@@ -105,6 +105,7 @@
     const BAND_AMBER_LT = 15.8;
 
     // Lexicon (product face):
+    //   banner          — top strip: button labels + status indicators
     //   dial            — multi-segment LED gauge ring
     //   button labels   — MODE / SEL (name physical keys; not touch targets)
     //   dial legend     — scale marks 8 / 11 / 13 / 15 / 17 / 20 on the dial
@@ -113,18 +114,21 @@
     //   swipe indicator — page dots at bottom
     //   status indicators — e.g. logging LED
     //
-    // Top chrome for button labels + status indicators. Dial goes to face bottom;
-    // swipe indicator is drawn on top (no reserved dead band under the dial).
-    const TOP_CHROME = 60;
+    // Banner sits above the dial. Dial goes to face bottom; swipe indicator overlays.
+    const BANNER_H = 60;
+    const TOP_CHROME = BANNER_H; // alias used in layout
     const SWIPE_DOTS_Y_FROM_BOTTOM = 14; // overlay only — dial uses full height below chrome
     // Band thickness as fraction of the *shorter* content half-span (+10%).
     const BAND_FRAC = 0.14 * 1.1;
     const PAGE_COUNT = 3;
-    // Type from min(inner half-axes). Value +20% on top of prior scale.
-    const AFR_DIGIT_OF_HALF = 0.58 * 1.5 * 1.1 * 1.2;  // value
-    const TICK_OF_HALF = 0.16 * 1.5;                   // dial legend
-    const CAPTION_OF_HALF = 0.12 * 1.5;                // value legend
-    const HARD_LABEL_OF_CHROME = 0.42;                 // button labels
+    // Type from min(inner half-axes). Value +20% again on prior scale.
+    const AFR_DIGIT_OF_HALF = 0.58 * 1.5 * 1.1 * 1.2 * 1.2;  // value
+    const TICK_OF_HALF = 0.16 * 1.5;                         // dial legend
+    const CAPTION_OF_HALF = 0.12 * 1.5;                      // value legend
+    const HARD_LABEL_OF_CHROME = 0.42;                       // button labels
+    // Banner fill (distinct from dial black; light text stays legible)
+    const BANNER_BG = "#1a2433";
+    const BANNER_EDGE = "#2a3a52";
 
     function clampAfr(afr) {
       return Math.min(AFR_MAX, Math.max(AFR_MIN, afr));
@@ -294,7 +298,8 @@
       // Labels only — map to physical PWR/BOOT-style keys on the top edge.
       const y = L.modeLabel.y;
       ctx.textBaseline = "middle";
-      ctx.fillStyle = "#e0e0e6";
+      // Light labels on dark banner blue for contrast.
+      ctx.fillStyle = "#e8eef8";
       const px = Math.max(16, Math.round(TOP_CHROME * HARD_LABEL_OF_CHROME));
       ctx.font = `700 ${px}px Segoe UI, system-ui, sans-serif`;
       ctx.textAlign = "left";
@@ -429,15 +434,17 @@
       }
 
       const readout = state.valid ? state.display.toFixed(1) : "--.-";
-      // Value (+20%); value + value legend vertically centered in the aperture.
+      // Value (+20% again); block centered then shifted down in the aperture.
       const digitPx = Math.min(
         Math.round(half * AFR_DIGIT_OF_HALF),
-        Math.round(Math.min(L.innerHalfW, L.innerHalfH) * 0.78)
+        Math.round(Math.min(L.innerHalfW, L.innerHalfH) * 0.82)
       );
       const captionPx = Math.max(12, Math.round(half * CAPTION_OF_HALF));
       const valueGap = Math.round(digitPx * 0.18);
       const blockH = digitPx + valueGap + captionPx;
-      const digitY = cy - blockH / 2 + digitPx / 2;
+      // Nudge down from geometric center so the pair sits lower in the hole.
+      const centerNudge = Math.min(L.innerHalfH, L.half) * 0.10;
+      const digitY = cy - blockH / 2 + digitPx / 2 + centerNudge;
       const captionY = digitY + digitPx / 2 + valueGap;
 
       ctx.fillStyle = "#ff2a2a";
@@ -475,8 +482,15 @@
       ctx.fillStyle = "#050508";
       ctx.fillRect(0, 0, w, h);
 
-      ctx.fillStyle = "#08080c";
+      // Banner — distinct from dial face (lexicon: banner)
+      ctx.fillStyle = BANNER_BG;
       ctx.fillRect(0, 0, w, TOP_CHROME);
+      ctx.strokeStyle = BANNER_EDGE;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(0, TOP_CHROME - 0.5);
+      ctx.lineTo(w, TOP_CHROME - 0.5);
+      ctx.stroke();
       drawHardButtonLabels(ctx, L);
       drawLoggingLed(ctx, L, logging);
 
