@@ -2,7 +2,21 @@
 
 **Date:** July 2026  
 **For:** [#4](https://github.com/tig/aether/issues/4) → product contract [`specs/maps.md`](../../specs/maps.md)  
-**Nature:** Survey notes, not product requirements. Prefer `specs/maps.md` for decisions.
+**Nature:** Survey notes, not product requirements. Prefer `specs/maps.md` for decisions.  
+**Pilot context:** Operator ECU is **FOME**; Speeduino is secondary/sim.
+
+## Canonical sources (bookmark this)
+
+| Topic | Canonical / primary source |
+|-------|----------------------------|
+| **INI definition language** | EFI Analytics *ECU Definition File Specification* — [TunerStudio docs index](https://www.efianalytics.com/TunerStudio/docs/) (search “ECU Definition” / iniSpec PDF on that site) |
+| **MSQ (XML tune)** | TunerStudio project/tune files; format behavior described in TS help and definition docs above — MSQ is **not** self-describing without matching INI |
+| **MegaSquirt serial (“newserial”)** | *Megasquirt serial protocol* (2014-10-28 and successors) — CRC envelope + `r`/`w`/`b` page commands; historically mirrored in MSExtra / community archives and Speeduino/rusEFI implementations |
+| **Speeduino** | [Speeduino wiki](https://wiki.speeduino.com/) + firmware INI in [speeduino/speeduino](https://github.com/speeduino/speeduino) |
+| **rusEFI TS binary / tunes** | [rusEFI wiki](https://wiki.rusefi.com/) + firmware `tunerstudio` sources [rusefi/rusefi](https://github.com/rusefi/rusefi) |
+| **FOME** | [https://www.fome.tech/](https://www.fome.tech/) · [wiki.fome.tech](https://wiki.fome.tech/) · [FOME-Tech/fome-fw](https://github.com/FOME-Tech/fome-fw) (TS integration, USB, INI) |
+| **LibreTune** (open TS-class host) | [LibreTune project / sources](https://github.com/LibreTune) (INI + MSQ + serial for Speeduino/rusEFI/FOME class) |
+| **MLVLG logs** (context for #3, not maps) | [MLG Binary Log Format 2.0 PDF](http://www.efianalytics.com/TunerStudio/docs/MLG_Binary_LogFormat_2.0.pdf) |
 
 ---
 
@@ -12,7 +26,7 @@
 
 ECU **definition files** (`.ini` / historically `.ecu`) describe everything a tuning app needs to talk to a controller and present settings: memory map, protocol commands, constants, table editors, gauges, datalog fields, menus.
 
-Authoritative public documentation: EFI Analytics *ECU Definition files* PDF (iniSpec through ~3.80 as of early 2026 revisions).
+Authoritative public documentation: EFI Analytics *ECU Definition files* PDF (iniSpec through ~3.80 as of early 2026 revisions) via [TunerStudio docs](https://www.efianalytics.com/TunerStudio/docs/).
 
 ### Key mechanisms
 
@@ -49,6 +63,8 @@ Resizable tables use dimension constants and expression-sized arrays (modern fir
 ### What it is
 
 **`.msq`** = TunerStudio **tune / calibration snapshot** for a project. Since ~2005 (MegaTune 4 / TS era) MSQs are **XML** (human-openable in a text editor). Older MegaTune 3.x styles exist in the wild; treat as legacy.
+
+**Canonical understanding:** there is no separate “ISO MSQ standard” independent of TunerStudio — the file is the **TS project tune export**, always interpreted with a **matching INI**. Primary product docs: [EFI Analytics TunerStudio](https://www.tunerstudio.com/) / [docs index](https://www.efianalytics.com/TunerStudio/docs/). Open implementations that round-trip MSQ (e.g. LibreTune) are useful secondary sources.
 
 ### Contents (conceptual)
 

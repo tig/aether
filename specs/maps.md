@@ -1,9 +1,16 @@
 # Aether ECU map (tune table) read/write
 
-**Rev 0.1 · July 2026**  
+**Rev 0.2 · July 2026**  
 **Status:** Contract / decision record — **not** an implementation.  
 **Issue:** [#4](https://github.com/tig/aether/issues/4)  
 **Related:** [#1](https://github.com/tig/aether/issues/1) (wireless host / LLM), [#2](https://github.com/tig/aether/issues/2) (event marks), [#3](https://github.com/tig/aether/issues/3) (logging), [#5](https://github.com/tig/aether/issues/5) (serial transport / session)
+
+### Operator context
+
+| Fact | Value |
+|------|--------|
+| **Pilot ECU** | **[FOME](https://www.fome.tech/)** (rusEFI-lineage; issue “FOAM” → FOME) |
+| **North star** | LLM-assisted map edit via structured patches (with [#1](https://github.com/tig/aether/issues/1)) |
 
 Product mission: [spec.md](spec.md). Raw survey notes: [docs/research/map-formats.md](../docs/research/map-formats.md).
 
@@ -58,9 +65,9 @@ Full notes: [docs/research/map-formats.md](../docs/research/map-formats.md).
 |-----------------|------------|--------------|----------------|-------------|-----------------|
 | **TunerStudio + EFI Analytics INI** | `.ini` / `.ecu` definition (signature, pages, constants, TableEditor, scales) | **`.msq`** (XML since ~2005) full tune; `.msqpart` partial dialog saves | Page/offset R/W + **burn** to flash; RAM first | No — needs projection | **P0 interop** |
 | **MegaSquirt MS2/MS3** | Firmware-shipped INI | MSQ | “Newserial” envelope + `r`/`w`/`b` (read/write/burn) + CRC32 | Opaque pages without INI | Pilot-adjacent |
-| **Speeduino** | Speeduino INI in TS | MSQ | TS-compatible pages; VE/spark/AFR tables (typically **16×16**, RPM × load) | Same as MS family after projection | **P0 pilot ECU family** |
-| **rusEFI** | Bundle `.ini` (USB mass-storage / auto-detect); signature-bound | MSQ via TS; online MSQ exchange | TS binary protocol + rusEFI console extensions | Same after projection | **P1** (richer stack) |
-| **FOME** (“FOAM” in issue prose = **FOME**, Free Open Motorsports ECU) | TS INI (rusEFI-lineage) | MSQ | TS-compatible serial + console | Same after projection | **P1** (peer of rusEFI) |
+| **FOME** (“FOAM” in issue prose = **FOME**, Free Open Motorsports ECU) | TS INI (rusEFI-lineage); [fome.tech](https://www.fome.tech/), [FOME-Tech/fome-fw](https://github.com/FOME-Tech/fome-fw) | MSQ | TS-compatible serial/USB + console | Same after projection | **P0 pilot ECU family** |
+| **rusEFI** | Bundle `.ini` (USB mass-storage / auto-detect); signature-bound | MSQ via TS; online MSQ exchange | TS binary protocol + rusEFI console extensions | Same after projection | **P0 family / P1 depth** (peer of FOME) |
+| **Speeduino** | Speeduino INI in TS | MSQ | TS-compatible pages; VE/spark/AFR tables (typically **16×16**, RPM × load) | Same as MS family after projection | **P1** (simulators / second metal) |
 | **LibreTune** (open TS-class app) | Same INI ecosystem | TS project / MSQ / CSV / Git tune versioning | Speeduino, rusEFI, FOME, epicEFI, partial MS | Proves INI family is implementable outside TS | Interop peer / reference |
 | **CSV / table dumps** | None | Axis + cell grids | N/A | High readability, weak provenance | **P1 export**; not sole backup |
 | **OEM encrypted / closed** | Vendor only | Proprietary | Flash tools | Poor | **Out of scope** |
@@ -169,10 +176,10 @@ Scalar / Curve — analogous (name, unit, value(s), bounds, definition_name)
 
 | Choice | Value |
 |--------|--------|
-| **Pilot ECU family** | **Speeduino** (TunerStudio INI + MSQ + page R/W/burn) |
-| **Why** | Open, serial-first, simple **RPM × load** VE/AFR/spark tables, huge field footprint, same conceptual stack as MS/rusEFI/FOME without rusEFI’s larger config surface for v1. |
-| **Architecture generality** | ATM + AMP + INI binder must not hard-code Speeduino table sizes; second family is rusEFI/FOME (same INI/TS pattern). |
-| **Explicit second** | **rusEFI / FOME** — P1 after Speeduino path is proven (USB-native, TS MSQ, richer tables). |
+| **Pilot ECU family** | **FOME** (TunerStudio INI + MSQ + page R/W/burn over **USB/serial**) |
+| **Why** | Operator’s vehicle ECU is FOME-based; same TS/INI/MSQ stack as rusEFI; USB-first bench path matches Aether Type-C prototype ([#5](https://github.com/tig/aether/issues/5)). |
+| **Architecture generality** | ATM + AMP + INI binder must not hard-code FOME table sizes; Speeduino remains a **simulator / secondary** metal target (fixed och layouts). |
+| **Explicit second** | **Speeduino** (sim + simpler surface) and broader **rusEFI** packs — P1 after FOME path is proven. |
 
 ### 3.4 What Aether is *not* claiming
 
@@ -287,9 +294,9 @@ After any RAM commit of a table region:
 
 | Platform | Read pages | Write RAM | Burn | Verify | ATM projection | Phase |
 |----------|------------|-----------|------|--------|----------------|-------|
-| Speeduino | Yes | Yes | Yes | Yes | Yes | **P0–P2** |
-| rusEFI | Yes | Yes | Yes | Yes | Yes | **P1–P3** |
-| FOME | Yes | Yes | Yes | Yes | Yes | **P1–P3** |
+| FOME | Yes | Yes | Yes | Yes | Yes | **P0–P3** (pilot) |
+| rusEFI | Yes | Yes | Yes | Yes | Yes | **P0 family / P1–P3** |
+| Speeduino | Yes | Yes | Yes | Yes | Yes | **P1–P2** (sim / secondary) |
 | MS2/MS3 | Yes | Yes | Yes | Yes | Yes | P2+ |
 | MSQ file only | N/A | Offline ATM edit | N/A (file save) | Diff | Yes | **P0** |
 | OEM closed | No | No | No | No | No | Out |
@@ -512,10 +519,10 @@ Device **must** re-check definition_hash and confirm token even if host already 
 
 | Phase | Deliverable | Success signal |
 |-------|-------------|----------------|
-| **P0 — Backup / export** | Offline MSQ import → ATM; ATM → MSQ/CSV export; Speeduino INI bind on host; no live write | Open exported MSQ in TS or LibreTune; definition_hash stable |
-| **P1 — Structured live read** | Session (#5) + Speeduino page read → ATM/AMP; table subset API; backup snapshot on connect | Live VE/AFR/spark visible as AMP; matches TS within scale digits |
+| **P0 — Backup / export** | Offline MSQ import → ATM; ATM → MSQ/CSV export; **FOME** INI bind on host; no live write | Open exported MSQ in TS or LibreTune; definition_hash stable |
+| **P1 — Structured live read** | Session (#5) + **FOME** page read over USB → ATM/AMP; table subset API; backup snapshot on connect | Live VE/AFR/spark visible as AMP; matches TS within scale digits |
 | **P2 — Guarded human write** | MapPatch validate + dry-run + RAM write + readback + explicit burn; backup-before-write; audit | Human enriches one VE region safely; restore backup works |
-| **P3 — LLM-assisted propose/apply** | Host agent (#1) consumes AMP + log marks (#2/#3); proposes MapPatch; human confirm on host/device; Speeduino pilot only | “Fix lean at mark” produces validated patch and confirmed RAM apply |
+| **P3 — LLM-assisted propose/apply** | Host agent (#1) consumes AMP + log marks (#2/#3); proposes MapPatch; human confirm on host/device; **FOME pilot only** first | “Fix lean at mark” produces validated patch and confirmed RAM apply |
 
 ### 10.1 Dependencies
 
@@ -558,13 +565,13 @@ All mutate methods **must** accept and check `confirm_token` for non-dry-run pat
 
 | # | Question | Impact |
 |---|----------|--------|
-| Q1 | Confirm **Speeduino** as first metal pilot vs rusEFI (better USB/wireless, larger surface)? | P1 hardware targets |
+| Q1 | ~~First metal pilot?~~ **Resolved:** **FOME** on operator vehicle + Aether USB prototype | — |
 | Q2 | On-device table editor vs host-only edits for P2? | UX scope on 1.8″ |
 | Q3 | Where do INIs live long-term — ship set, host library, ECU-provided? | Offline robustness |
 | Q4 | Exact AMP JSON Schema file location and CI validation? | Host tooling |
 | Q5 | Should Aether ever auto-burn after N successful RAM readbacks? (**Recommend: no**) | Safety |
 | Q6 | Multi-table fuel (dual VE banks) — project as separate ATM tables from day one? | Schema |
-| Q7 | FOME vs rusEFI priority if only one P1 slot? | Community focus |
+| Q7 | rusEFI pack depth vs Speeduino sim after FOME P0–P2 | Lab bandwidth |
 | Q8 | Legal/licensing note for bundling third-party INIs | Distribution |
 
 ---
@@ -587,7 +594,7 @@ Closing #4 means **spec accepted**, not product map R/W shipping.
 
 | To | Deliver |
 |----|---------|
-| **#5 serial** | Page read/write/burn + signature query for Speeduino; shared session with map layer |
+| **#5 serial** | Page read/write/burn + signature query for **FOME** over USB; shared session with map layer |
 | **#3 logging** | Channel set sufficient to bin RPM×load×AFR against tables; export that host agent can join to marks |
 | **#2 marks** | Stable timestamps/IDs in logs for region suggestion |
 | **#1 wireless** | AMP + MapPatch + confirm token transport; never raw unauthenticated burn RPC |
