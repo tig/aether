@@ -267,19 +267,24 @@ What fails:
 
 ## 13. OSS leverage map (host + metal)
 
-Survey of **existing open-source** code Aether can use, study, or must avoid linking. Product recommendations live in [`specs/maps.md` §16](../../specs/maps.md). Prefer **permissive** (MIT / Apache-2.0 / BSD / ISC / Zlib) for static link into Aether firmware or host libs; **GPL** is fine as a **separate process / reference / gold-test** peer, not as a linked dependency of non-GPL product code.
+Survey of **existing open-source** code Aether should **use hard** for prove/HIL, plus notes for later ship hygiene. Normative stance: [`specs/maps.md` §16](../../specs/maps.md) — **prove first, don’t be pedantic about GPL in the lab.**
 
-### 13.1 License policy (Aether map stack)
+### 13.1 Stance (prove vs hygiene)
 
-| Layer | Preference | Rationale |
-|-------|------------|-----------|
-| **Metal (ESP32-S3 / ESP-IDF / C)** | **Permissive only** for static link | Firmware binary must stay free of GPL viral terms unless the whole product is re-licensed GPL |
-| **Host libraries** (in-process) | Permissive preferred | Same clean story for packaging and future dual-license |
-| **Host CLI / sidecar** | **GPL OK** if separate process | e.g. shell out to a GPL tool for golden MSQ compare |
-| **Reference only** | Any OSS license | Read algorithms / fixtures; **clean-room** reimplementation under Aether license |
-| **Proprietary** | **Do not reuse** code or claimed proprietary algorithms | TunerStudio binaries, VE Analyze internals, EFI Analytics cloud SOAP |
+| Mode | Practice |
+|------|----------|
+| **Prove / lab / gh ship-vehicle (now)** | Run **LibreTune**, talk **FOME/rusEFI**, capture goldens, CI against open ECU tools. Gray areas (“is this repo the ship vehicle?”) are **documented**, not blocking. |
+| **Redistribute hygiene (later)** | Before polished public binaries, revisit static-link and redistributed trees. See §13.5 and maps.md §16.5. |
 
-**Viral licenses called out:** GPL-2.0, GPL-3.0 (including rusEFI/FOME “GPL-3 + additional terms”), and AGPL — **do not static-link** into metal or non-GPL host. Dynamic process isolation + no derivative work is the safe pattern.
+**Working preference:** permissive for *new* Aether modules when easy; **GPL ecosystem is first-class for validation**. Avoid license theater that slows HIL.
+
+| Layer | Preference (now) | Later if shipping widely |
+|-------|------------------|---------------------------|
+| **Test / HIL / goldens** | **FOME, rusEFI, LibreTune, Speeduino — use them** | Keep as external/dev deps if counsel wants a cleaner product tree |
+| **Metal USB/FS/JSON** | ESP-IDF / MIT/Apache when available | Same |
+| **Aether ATM/AMP/MapPatch** | Build under product license | Unchanged |
+| **Temporary GPL spike** | OK if labeled; gets the demo working | Replace or isolate before “real” release |
+| **TunerStudio closed code** | **No** decompile / proprietary algorithm lift | Unchanged hard line |
 
 ### 13.2 Candidate inventory
 
@@ -289,7 +294,7 @@ Each row: **name · URL · SPDX · language · host/metal fit · maturity · int
 
 | Name | URL | SPDX | Lang | Fit | Maturity | Cost | Gaps / notes |
 |------|-----|------|------|-----|----------|------|--------------|
-| **LibreTune** | [github.com/RallyPat/LibreTune](https://github.com/RallyPat/LibreTune) | **GPL-2.0** | Rust + TS (Tauri) | **Host reference** — modular `libretune-core`: `ini/`, `tune/` (MSQ), `protocol/`, `ecu/`, `table_ops/` | Early but active (2026 nightlies); Speeduino/rusEFI/**FOME**/epicEFI | **High if forked as product**; **Low as gold reference** | **Cannot link** into non-GPL Aether. Not a published crates.io lib. No AMP/MapPatch. Full desktop tuner — out of Aether device scope. **Best OSS proof** of INI+MSQ+serial outside TS. |
+| **LibreTune** | [github.com/RallyPat/LibreTune](https://github.com/RallyPat/LibreTune) | **GPL-2.0** | Rust + TS (Tauri) | **Primary validation host** — modular `libretune-core`: `ini/`, `tune/` (MSQ), `protocol/`, `ecu/`, `table_ops/` | Early but active (2026 nightlies); Speeduino/rusEFI/**FOME**/epicEFI | **Low for goldens** (clone and run); high only if forked as Aether UI | **Use for MSQ open/save + serial smoke.** Not a crates.io lib; no AMP/MapPatch. Full desktop tuner — out of Aether device scope. GPL: fine as test sidecar / local clone; flag if vendored into product binary later. |
 | **MegaTunix** | [github.com/djandruczyk/MegaTunix](https://github.com/djandruczyk/MegaTunix) · SF | **GPL-2.0** | C (GTK) | Historical host reference for MS serial | **Legacy / stalled**; modern MS firmware support incomplete | High (old GTK, incomplete modern INI) | Do not base new work; useful only for archaeology of page R/W |
 | **msqur** | [github.com/nearwood/msqur](https://github.com/nearwood/msqur) · [msqur.com](https://msqur.com) | **GPL-3.0** | PHP + JS | **Host reference** for MSQ XML + INI display | Mature enough for MS1–MS3 / Speeduino / rusEFI **viewing** | Med as read-path study | View-only web app; not a library; GPL-3; write path weak |
 | **TunerStudio** | [tunerstudio.com](https://www.tunerstudio.com/) | **Proprietary** | Java | Interop **target** only | Dominant commercial host | N/A — **cannot reuse** | Closed: UI, autotune algorithms, cloud SOAP, binary. **Public** piece: *ECU Definition File Specification* (INI). MSQ is TS project XML — document behavior, don’t copy closed code. |
@@ -298,9 +303,9 @@ Each row: **name · URL · SPDX · language · host/metal fit · maturity · int
 
 | Name | URL | SPDX | Lang | Fit | Maturity | Cost | Gaps / notes |
 |------|-----|------|------|-----|----------|------|--------------|
-| **FOME** (`fome-fw`) | [github.com/FOME-Tech/fome-fw](https://github.com/FOME-Tech/fome-fw) | **GPL-3.0 + additional terms** (rusEFI-lineage; GitHub `NOASSERTION`) | C++ firmware + Java console/tools | **Pilot ECU** — protocol **behavior** + **INI packs** as data; console as host peer | Production open ECU; active | **Low as black-box ECU**; **High if linking firmware** | **Do not static-link** firmware or Java console into Aether. Study `tunerstudio` path + shipped INI. Same family as rusEFI for page R/W. Redistributing INI files: treat as GPL-adjacent data — record provenance (open Q8 in product spec). |
-| **rusEFI** | [github.com/rusefi/rusefi](https://github.com/rusefi/rusefi) | **GPL-3.0 + additional terms** (off-road / non-aircraft caveats; GitHub `NOASSERTION`) | C++ + Java (`java_console`, `java_tools`) | Peer family; **TS binary protocol** in `firmware/.../tunerstudio*`; console for diagnostics | Very mature | Same as FOME | Viral for link. Excellent **protocol reference** and **definition delivery** (USB mass-storage INI). Additional terms are product-use caveats, not a permissive grant. |
-| **Speeduino** | [github.com/speeduino/speeduino](https://github.com/speeduino/speeduino) | **GPL-2.0** | C++ (Arduino) | **Sim / secondary metal**; simpler page surface | Mature community ECU | Low as sim target | GPL firmware — don’t link. INI in tree is definition data for host bind. Secondary after FOME pilot. |
+| **FOME** (`fome-fw`) | [github.com/FOME-Tech/fome-fw](https://github.com/FOME-Tech/fome-fw) | **GPL-3.0 + additional terms** (rusEFI-lineage; GitHub `NOASSERTION`) | C++ firmware + Java console/tools | **Pilot ECU / HIL #1** — live USB-serial, INI packs, page R/W behavior | Production open ECU; active | **Low for HIL** (plug in and talk) | **Use as the vehicle ECU.** Capture INI/MSQ goldens. Study `tunerstudio` path. Static-link of firmware into Aether is the later hygiene question — not a reason to skip HIL. Additional terms: document for product disclaimers. |
+| **rusEFI** | [github.com/rusefi/rusefi](https://github.com/rusefi/rusefi) | **GPL-3.0 + additional terms** (off-road / non-aircraft caveats; GitHub `NOASSERTION`) | C++ + Java (`java_console`, `java_tools`) | Peer HIL + protocol study; USB mass-storage INI story | Very mature | Low for black-box HIL | Same family as FOME. Excellent **definition delivery** patterns. Use freely for lab; note additional terms for later marketing/docs. |
+| **Speeduino** | [github.com/speeduino/speeduino](https://github.com/speeduino/speeduino) | **GPL-2.0** | C++ (Arduino) | **Sim / secondary metal** | Mature community ECU | Low as sim | Secondary after FOME pilot; great when the car is not available. |
 | **TS_lib** | [github.com/filipporaciti/TS_lib](https://github.com/filipporaciti/TS_lib) | **MIT** | C++ (Arduino) | **Metal-adjacent** — ECU-side TS protocol helper | Small / niche | Low to read | Helps **ECU implementers**, not host INI/MSQ. May inform framing only; not FOME/rusEFI complete. |
 | **speeduino-serial-sim** | [github.com/askrejans/speeduino-serial-sim](https://github.com/askrejans/speeduino-serial-sim) | **MIT** | (see repo) | **Host/metal test harness** — Speeduino protocol v2 (framed CRC32 + legacy) | Useful for CI sim | Low | Speeduino-only; not FOME. Great for #5 protocol tests on secondary path. |
 
@@ -308,13 +313,13 @@ Each row: **name · URL · SPDX · language · host/metal fit · maturity · int
 
 | Name | URL | SPDX | Lang | Fit | Maturity | Cost | Gaps / notes |
 |------|-----|------|------|-----|----------|------|--------------|
-| **LibreTune `ini` + `tune` modules** | inside LibreTune | **GPL-2.0** | Rust | **Best structured OSS INI/MSQ engine** in the wild | Coupled to LibreTune app | High (license + API not packaged) | **Not** a standalone crate. Options: (1) **reference for clean-room**, (2) GPL **sidecar** process, (3) relicense negotiation (unlikely). **Must not** copy into MIT/Apache Aether tree without GPL whole-work. |
+| **LibreTune `ini` + `tune` modules** | inside LibreTune | **GPL-2.0** | Rust | **Best structured OSS INI/MSQ engine** in the wild | Coupled to LibreTune app | Low as **oracle** (run LibreTune); high to **extract as product lib** | **Not** a standalone crate. Prove mode: use whole app as gold. Product path: clean-room binder *or* deliberate GPL product strategy — decide later; don’t block goldens. |
 | **msqur PHP MSQ/INI parse** | nearwood/msqur `src/` | **GPL-3.0** | PHP | Reference for XML constant trees | Web-app quality | High to port | Not embeddable in ESP or preferred host lang without rewrite |
 | **Python `configparser`** | stdlib | PSF | Python | **Unsuitable** as ECU INI engine | N/A | — | ECU definitions are a **domain language** (typed constants, pages, TableEditor, expressions) — not Windows INI. Use only for trivial key dumps, never as the binder. |
 | **General XML (lxml / ElementTree)** | various | MIT / PSF | Python | **Host plumbing** for MSQ XML DOM | Mature | Low | Need Aether schema of MSQ elements; XML libs don’t know “constant meaning” |
 | **RomRaider** | [github.com/RomRaider/RomRaider](https://github.com/RomRaider/RomRaider) | **GPL-2.0** | Java | **Out of ecosystem** (Subaru/OEM ROM defs) | Mature for OEM | High / wrong stack | Different problem (ROM tables, checksums). Note only; not TS page path. |
 
-**Finding:** there is **no permissive, production-grade, standalone “ECU INI + MSQ” library**. Aether **must build** the host binder (or accept a GPL sidecar). LibreTune is the primary **behavioral oracle**.
+**Finding:** there is **no permissive, production-grade, standalone “ECU INI + MSQ” library**. Aether will **build** ATM/AMP and likely its own binder over time. **LibreTune + live FOME are the primary behavioral oracles today** — use them, don’t wait for a perfect MIT library.
 
 #### D. Patch / schema / serialization (host + optional metal)
 
@@ -332,8 +337,8 @@ Each row: **name · URL · SPDX · language · host/metal fit · maturity · int
 | Name | URL | SPDX | Notes |
 |------|-----|------|-------|
 | **MS newserial docs** | Megasquirt serial protocol PDF (community mirrors) | Documentation | Canonical command set `r`/`w`/`b` + CRC envelope — **implement clean-room** |
-| **Speeduino / FOME / rusEFI sources** | respective firmwares | GPL-* | **Behavior reference only** for host/metal client; do not copy GPL into Aether tree |
-| **LibreTune `protocol`** | RallyPat/LibreTune | GPL-2.0 | Best host-side multi-family client reference |
+| **Speeduino / FOME / rusEFI sources** | respective firmwares | GPL-* | **HIL + behavior reference**; implement client against live ECU; avoid unreviewed wholesale paste into metal if a small clean client works |
+| **LibreTune `protocol`** | RallyPat/LibreTune | GPL-2.0 | Best host-side multi-family client — **run it** for multi-family checks |
 | **ESP-IDF UART / USB-Serial-JTAG** | Espressif | Apache-2.0 | Transport substrate for #5 |
 
 ### 13.3 What TunerStudio cannot contribute
@@ -349,39 +354,51 @@ Each row: **name · URL · SPDX · language · host/metal fit · maturity · int
 ### 13.4 Host vs metal leverage summary
 
 ```text
-HOST (P0 first)
-  ├── INI binder .............. BUILD (clean-room; LibreTune/msqur as oracle)
-  ├── MSQ XML R/W ............. BUILD (XML lib + Aether model; gold vs LibreTune)
-  ├── ATM / AMP / MapPatch .... BUILD (Aether IP; jsonschema + optional json-patch)
-  ├── FOME INI pack ........... SHIP subset as data (provenance + license note)
-  └── Optional GPL sidecar .... LibreTune CLI / manual compare (separate process)
+HOST (P0 first) — prove with ecosystem tools
+  ├── LibreTune / TS ......... RUN as gold (open MSQ, serial smoke)
+  ├── FOME INI + MSQ samples . CAPTURE from real ECU / tuner project
+  ├── INI binder ............. BUILD over time (bootstrap vs LibreTune)
+  ├── MSQ XML R/W ............ BUILD; acceptance = LibreTune/TS opens file
+  ├── ATM / AMP / MapPatch ... BUILD (Aether IP; jsonschema)
+  └── CI ..................... May depend on GPL tools / recorded fixtures
 
-METAL (later; #5 shared session)
-  ├── TS page r/w/burn client . BUILD clean-room C (protocol docs + black-box ECU)
-  ├── Definition hash check ... BUILD (or host-pushed bind; metal re-validates)
-  ├── Structured table cache .. BUILD thin (active tables only; not full ATM)
-  ├── JSON (cJSON) ............ OPTIONAL for host bridge payloads
-  └── nanopb / FlatBuffers .... DEFER (not needed to ship map R/W)
+METAL (with #5) — HIL first
+  ├── FOME over USB .......... REQUIRED pilot path
+  ├── TS page r/w/burn ....... BUILD against live FOME (docs + HIL)
+  ├── rusEFI ................. Optional peer HIL
+  ├── Structured table cache . BUILD thin
+  ├── cJSON .................. OPTIONAL
+  └── nanopb / FlatBuffers ... DEFER
 ```
 
-### 13.5 Must-build list (nothing permissive exists)
+### 13.5 License gray areas (document; don’t stall)
 
-1. **ECU-definition-aware INI parser** — `signature`, pages, `[Constants]`, scales, `[TableEditor]` x/y/zBins.  
+| Topic | Note |
+|-------|------|
+| **GPL in monorepo / CI** | Dev/test use of LibreTune/FOME is expected. Whether a public release tarball is a “combined work” is a **later** packaging question. |
+| **Static link into firmware** | Prefer not to paste GPL `tunerstudio.cpp` wholesale; a short Aether client is usually faster *and* cleaner. Spikes that vendor code should be labeled. |
+| **FOME/rusEFI additional terms** | Beyond bare GPL; fine for HIL; product disclaimers when marketing hardens. |
+| **INI redistribution** | Record provenance; pilot fixtures OK. |
+| **gh as ship vehicle** | Spec/code may live in the same org as experiments — optimize for **proof**, not perfect SPDX theater. |
+
+### 13.6 Must-build list (product path; goldens can lead)
+
+1. **ECU-definition-aware INI parser** (or deliberate long-term LibreTune dependency strategy).  
 2. **MSQ XML import/export** bound to a loaded definition.  
-3. **ATM ↔ pages ↔ MSQ** projection with `definition_hash` / `document_hash`.  
-4. **MapPatch** validate + dry-run + apply (domain ops, not RFC6902-only).  
-5. **TS-class serial client** (page read/write/burn + CRC + signature query) — shared with #5.  
-6. **FOME pilot fixtures** — sample INI + MSQ + golden AMP for CI.  
-7. **Safety gates** — backup-before-write, readback, explicit burn, agent confirm token.
+3. **ATM ↔ pages ↔ MSQ** with `definition_hash` / `document_hash`.  
+4. **MapPatch** validate + dry-run + apply (domain ops).  
+5. **TS-class serial client** — shared with #5; prove on **live FOME**.  
+6. **FOME fixtures** — capture from car/HIL + LibreTune.  
+7. **Safety gates** — backup, readback, burn, agent confirm.
 
-### 13.6 Recommended stack by phase (pointer)
+### 13.7 Recommended stack by phase (pointer)
 
 | Phase | Leverage |
 |-------|----------|
-| **P0** | Build host INI+MSQ+ATM; jsonschema; FOME INI pack; LibreTune as manual gold |
-| **P1** | Clean-room serial client to FOME; speeduino-serial-sim for secondary CI; optional cJSON |
-| **P2** | MapPatch apply path; no new OSS deps required |
-| **P3** | Host agent loop; still no GPL link |
+| **P0** | Host INI+MSQ+ATM; **LibreTune gold**; real FOME MSQ samples |
+| **P1** | Live FOME USB read; rusEFI peer; speeduino-serial-sim for CI when car offline |
+| **P2** | MapPatch write path; validate with LibreTune re-read + FOME |
+| **P3** | LLM loop; same HIL stack |
 
 Detail: [`specs/maps.md` §16](../../specs/maps.md).
 
