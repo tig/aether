@@ -40,13 +40,14 @@ Reference visual: commercial 52 mm digital wideband (arc LEDs + 7-segment-style 
 | Center | Large **one-decimal** numeric AFR |
 | Label | **AIR/FUEL RATIO** |
 | Panel | Native **368×448**; product UI is **landscape 448×368** with USB + hard buttons on the **top** edge |
-| Hard buttons | Physical keys beside USB (PWR/BOOT-class) map to **MODE** / **SEL** — on-screen **labels only**, not touch targets |
-| Face shape | Gauge shifted down under top chrome; LED outer flush L/R of landscape face; rounded-square inner; large AFR readout |
-| Caption | **AIR/FUEL RATIO** under the numeric value |
-| Logging | Pulsing **red LED centered at top between MODE and SEL** (text-free) |
-| Swipe | **Page dots** at bottom (iOS-style) — swipe left/right between faces |
+| Face lexicon | [specs/lexicon.md](specs/lexicon.md): **dial**, **button labels**, **dial legend**, **value**, **value legend**, **swipe indicator**, **status indicators** |
+| Dial | Multi-segment LED ring; outer fills full width and full height under **button labels** (to face bottom); constant band thickness |
+| Button labels | **MODE** / **SEL** — physical keys only, not touch targets |
+| Dial legend | **8 · 11 · 13 · 15 · 17 · 20** inside the aperture (not on the LED segments) |
+| Value / value legend | Large AFR **value**; **AIR/FUEL RATIO** under it |
+| Status indicators | Logging **red LED** centered at top between button labels |
+| Swipe indicator | Page dots overlaid at bottom — swipe left/right |
 | Stoich mark | Segment at **~14.7** stays slightly highlighted even when not fill-lit |
-| Scale labels | Readable ticks: **8 · 11 · 13 · 15 · 17 · 20** |
 | MODE / SEL | Large bottom bar (~18% height), two equal hit targets flush L/R/B; labels **MODE** / **SEL** only (no LIVE/TAP subtext) |
 
 ### Color band map (shipped mockup logic)

@@ -30,15 +30,16 @@ from .afr_gauge import (
 FACE_W = 448
 FACE_H = 368
 TOP_CHROME = 60
-BOTTOM_DOTS = 28
+# Dial uses full height under chrome; swipe indicator overlays bottom (no dead strip).
+SWIPE_DOTS_Y_FROM_BOTTOM = 14
 # Constant band thickness vs shorter content half (mid-side width == mid-top height).
 BAND_FRAC = 0.14
 PAGE_COUNT = 3
-# Type as fractions of min(inner half-axes).
-AFR_DIGIT_OF_HALF = 0.58
-TICK_OF_HALF = 0.16
-CAPTION_OF_HALF = 0.12
-HARD_LABEL_OF_CHROME = 0.42
+# Type as fractions of min(inner half-axes). +50% vs prior.
+AFR_DIGIT_OF_HALF = 0.58 * 1.5  # value
+TICK_OF_HALF = 0.16 * 1.5  # dial legend
+CAPTION_OF_HALF = 0.12 * 1.5  # value legend
+HARD_LABEL_OF_CHROME = 0.42  # button labels
 
 
 def _stoich_segment_index(n: int = SEGMENT_COUNT) -> int:
@@ -62,11 +63,11 @@ def _segment_svg_color(band: str, lit: bool, *, stoich: bool = False) -> str:
 
 def _layout(w: int = FACE_W, h: int = FACE_H) -> dict:
     content_top = TOP_CHROME
-    content_bot = h - BOTTOM_DOTS
+    content_bot = h  # dial to face bottom — no wasted strip under start/end
     content_h = content_bot - content_top
     cx = w / 2.0
     cy = content_top + content_h / 2.0
-    # Outer: full panel width, full height under chrome / above dots.
+    # Outer: full panel width, full height under chrome to bottom.
     outer_half_w = w / 2.0
     outer_half_h = content_h / 2.0
     band = min(outer_half_w, outer_half_h) * BAND_FRAC
@@ -92,7 +93,7 @@ def _layout(w: int = FACE_W, h: int = FACE_H) -> dict:
         "sel_x": w - 22.0,
         "chrome_y": TOP_CHROME / 2.0,
         "log_r": 9.0,
-        "dots_y": h - BOTTOM_DOTS / 2.0,
+        "dots_y": h - SWIPE_DOTS_Y_FROM_BOTTOM,
     }
 
 
@@ -236,14 +237,13 @@ def render_gauge_svg(
             parts.append(f'<polygon points="{" ".join(pts)}" fill="{color}"{stroke}/>')
 
         half = L["half"]
-        label_tick = max(11, round(half * TICK_OF_HALF))
+        # Dial legend (+50%) sits inside the aperture, not on the LED segments.
+        label_tick = max(14, round(half * TICK_OF_HALF))
         for mark, label in ((8, "8"), (11, "11"), (13, "13"), (15, "15"), (17, "17"), (20, "20")):
             t = (mark - AFR_MIN) / (AFR_MAX - AFR_MIN)
             ang = math.radians(start_deg - t * sweep_deg)
-            # Tick labels sit in the ring band, not the digit hole.
             ri = _inner_radius_at(ang, L)
-            ro = _outer_radius_at(ang, L)
-            r = (ri + ro) / 2.0
+            r = max(float(label_tick), ri - label_tick * 0.85)
             x = cx + r * math.cos(ang)
             y = cy - r * math.sin(ang)
             parts.append(
@@ -252,18 +252,19 @@ def render_gauge_svg(
                 f'text-anchor="middle" dominant-baseline="middle">{label}</text>'
             )
 
+        # Value + value legend (+50%), capped to fit in the aperture.
         digit_px = min(
             round(half * AFR_DIGIT_OF_HALF),
-            round(min(L["inner_half_w"], L["inner_half_h"]) * 0.85),
+            round(min(L["inner_half_w"], L["inner_half_h"]) * 0.72),
         )
-        digit_y = cy - digit_px * 0.08
+        digit_y = cy - digit_px * 0.12
         parts.append(
             f'<text x="{cx}" y="{digit_y:.1f}" fill="#ff2a2a" '
             f'font-size="{digit_px}" font-weight="700" '
             f'font-family="Consolas, monospace" text-anchor="middle" '
             f'dominant-baseline="middle">{state.readout()}</text>'
         )
-        caption_px = max(9, round(half * CAPTION_OF_HALF))
+        caption_px = max(12, round(half * CAPTION_OF_HALF))
         parts.append(
             f'<text x="{cx}" y="{digit_y + digit_px * 0.52:.1f}" fill="#c0c0c8" '
             f'font-size="{caption_px}" font-weight="600" '
@@ -278,10 +279,7 @@ def render_gauge_svg(
             f'text-anchor="middle" dominant-baseline="middle">{title}</text>'
         )
 
-    # Bottom swipe dots
-    parts.append(
-        f'<rect x="0" y="{h - BOTTOM_DOTS}" width="{w}" height="{BOTTOM_DOTS}" fill="#08080c"/>'
-    )
+    # Swipe indicator overlaid on dial bottom (no dead band under the dial)
     gap = 14
     total_w = (PAGE_COUNT - 1) * gap
     x0 = cx - total_w / 2

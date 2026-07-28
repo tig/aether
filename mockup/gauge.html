@@ -104,18 +104,27 @@
     const BAND_GREEN_LT = 15.0;
     const BAND_AMBER_LT = 15.8;
 
-    // Top chrome for hard-button labels + log LED; bottom for swipe dots.
+    // Lexicon (product face):
+    //   dial            — multi-segment LED gauge ring
+    //   button labels   — MODE / SEL (name physical keys; not touch targets)
+    //   dial legend     — scale marks 8 / 11 / 13 / 15 / 17 / 20 on the dial
+    //   value           — large AFR numeric readout
+    //   value legend    — "AIR/FUEL RATIO" under the value
+    //   swipe indicator — page dots at bottom
+    //   status indicators — e.g. logging LED
+    //
+    // Top chrome for button labels + status indicators. Dial goes to face bottom;
+    // swipe indicator is drawn on top (no reserved dead band under the dial).
     const TOP_CHROME = 60;
-    const BOTTOM_DOTS = 28;
-    // Band thickness as fraction of the *shorter* content half-span (equal mid-side
-    // width and mid-top height). Outer fills full width + full content height.
+    const SWIPE_DOTS_Y_FROM_BOTTOM = 14; // overlay only — dial uses full height below chrome
+    // Band thickness as fraction of the *shorter* content half-span.
     const BAND_FRAC = 0.14;
     const PAGE_COUNT = 3;
-    // Type from min(halfW, halfH) so digits stay inside the aperture.
-    const AFR_DIGIT_OF_HALF = 0.58;
-    const TICK_OF_HALF = 0.16;
-    const CAPTION_OF_HALF = 0.12;
-    const HARD_LABEL_OF_CHROME = 0.42;
+    // Type from min(inner half-axes). +50% vs prior dial-relative sizes.
+    const AFR_DIGIT_OF_HALF = 0.58 * 1.5;   // value
+    const TICK_OF_HALF = 0.16 * 1.5;        // dial legend
+    const CAPTION_OF_HALF = 0.12 * 1.5;     // value legend
+    const HARD_LABEL_OF_CHROME = 0.42;      // button labels
 
     function clampAfr(afr) {
       return Math.min(AFR_MAX, Math.max(AFR_MIN, afr));
@@ -192,16 +201,16 @@
     let lastState = mapAfr(AFR_STOICH);
 
     /**
-     * Landscape layout. Dial fills the content band: full panel width and all
-     * height between top chrome (MODE/LED/SEL) and bottom swipe dots.
+     * Landscape layout. Dial fills full width and all height under top chrome
+     * down to the face bottom (swipe indicator overlays the dial).
      */
     function layout(w, h) {
       const contentTop = TOP_CHROME;
-      const contentBot = h - BOTTOM_DOTS;
+      const contentBot = h; // dial to bottom — no wasted strip under start/end
       const contentH = contentBot - contentTop;
       const cx = w / 2;
       const cy = contentTop + contentH / 2;
-      // Outer rect: flush L/R of face, T/B of content band.
+      // Outer rect: flush L/R of face, T under chrome, B at face bottom.
       const outerHalfW = w / 2;
       const outerHalfH = contentH / 2;
       // Constant band thickness (mid-side width == mid-top height).
@@ -221,7 +230,7 @@
         modeLabel: { x: 22, y: TOP_CHROME / 2 },
         selLabel: { x: w - 22, y: TOP_CHROME / 2 },
         logLed: { x: w / 2, y: TOP_CHROME / 2, r: 9 },
-        dotsY: h - BOTTOM_DOTS / 2,
+        dotsY: h - SWIPE_DOTS_Y_FROM_BOTTOM,
       };
     }
 
@@ -387,9 +396,9 @@
         }
       }
 
-      // Type sized from dial half so it cannot overflow the aperture.
+      // Type sized from dial aperture half. Dial legend sits *inside* the hole.
       const half = L.half;
-      const labelPx = Math.max(11, Math.round(half * TICK_OF_HALF));
+      const labelPx = Math.max(14, Math.round(half * TICK_OF_HALF));
       ctx.fillStyle = "#d0d0d8";
       ctx.font = `600 ${labelPx}px Segoe UI, system-ui, sans-serif`;
       ctx.textAlign = "center";
@@ -397,21 +406,20 @@
       for (const mark of [8, 11, 13, 15, 17, 20]) {
         const t = (mark - AFR_MIN) / (AFR_MAX - AFR_MIN);
         const a = (startDeg - t * sweepDeg) * Math.PI / 180;
-        // Sit in the ring band (between inner and outer), not in the digit hole.
+        // Inside the dial (inboard of the segments), not on the LED band.
         const ri = innerRadiusAt(a, L);
-        const ro = outerRadiusAt(a, L);
-        const r = (ri + ro) / 2;
+        const r = Math.max(labelPx, ri - labelPx * 0.85);
         const [x, y] = pt(r, a);
         ctx.fillText(String(mark), x, y);
       }
 
       const readout = state.valid ? state.display.toFixed(1) : "--.-";
-      // Cap digit size so "20.0" fits inside the rounded aperture.
+      // Value +50%; still capped to fit "20.0" in the aperture with legend.
       const digitPx = Math.min(
         Math.round(half * AFR_DIGIT_OF_HALF),
-        Math.round(Math.min(L.innerHalfW, L.innerHalfH) * 0.85)
+        Math.round(Math.min(L.innerHalfW, L.innerHalfH) * 0.72)
       );
-      const digitY = cy - digitPx * 0.08;
+      const digitY = cy - digitPx * 0.12;
       ctx.fillStyle = "#ff2a2a";
       ctx.font = `bold ${digitPx}px Consolas, ui-monospace, monospace`;
       ctx.textAlign = "center";
@@ -421,7 +429,7 @@
       ctx.fillText(readout, cx, digitY);
       ctx.shadowBlur = 0;
 
-      const captionPx = Math.max(9, Math.round(half * CAPTION_OF_HALF));
+      const captionPx = Math.max(12, Math.round(half * CAPTION_OF_HALF));
       ctx.fillStyle = "#c0c0c8";
       ctx.font = `600 ${captionPx}px Segoe UI, system-ui, sans-serif`;
       ctx.textBaseline = "top";
@@ -463,9 +471,7 @@
         drawPlaceholderPage(ctx, L, "LOGGER");
       }
 
-      // Bottom swipe dots
-      ctx.fillStyle = "#08080c";
-      ctx.fillRect(0, h - BOTTOM_DOTS, w, BOTTOM_DOTS);
+      // Swipe indicator overlaid on dial bottom (no dead band under the dial)
       drawSwipeDots(ctx, L);
     }
 

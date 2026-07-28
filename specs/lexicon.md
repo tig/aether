@@ -1,0 +1,16 @@
+# Aether face lexicon
+
+Canonical names for the product face. Use these in agent prose, specs, and mockup
+code comments — do not invent nicknames.
+
+| Term | Meaning |
+|------|---------|
+| **dial** | The multi-segmented LED gauge ring (outer segments + rounded inner aperture). |
+| **button labels** | On-screen **MODE** / **SEL** text naming the physical hard keys (not touch targets). |
+| **dial legend** | Scale marks on the dial: **8 · 11 · 13 · 15 · 17 · 20** (inside the aperture, not on the LED segments). |
+| **value** | The large numeric AFR readout (e.g. `14.7`). |
+| **value legend** | The **AIR/FUEL RATIO** caption under the value. |
+| **swipe indicator** | Page dots at the bottom of the face (swipe left/right between pages). |
+| **status indicators** | Non-text status chrome (e.g. the logging red LED). |
+
+Related layout: landscape **448×368** product UI; native panel **368×448**; hard buttons on the top edge with USB.
