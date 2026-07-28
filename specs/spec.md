@@ -127,7 +127,8 @@ This is a **~1.8″** face. Text that looks fine when zoomed on a desktop can be
 **Value floors (do not regress)**
 
 - **Primary value** (the dominant live number on a screen — on the AFR screen, the AFR **value**) must **never be smaller** than the current shipping primary size. Reference at 448×368: **≥ 82 device pixels** high (mockup-tuned). Later screens with a different primary number (e.g. a dedicated RPM page) must keep their primary at least this large unless the product explicitly re-baselines.
-- **Secondary values** (supporting live numbers on the same face — on the AFR screen, **RPM** and **TPS**/WOT) must **never be smaller** than the current shipping secondary size. Reference at 448×368: **≥ 48 device pixels** high.
+- **Secondary values** (supporting live numbers on the same face — on the AFR screen, **RPM** and **TPS**/WOT) must **never be smaller** than the current shipping secondary size. Reference at 448×368: **≥ 53 device pixels** high.
+- **Legends** (value legend, dial legend, RPM/TPS captions) are **intentionally larger than banner MODE/SEL** — at least **+25%** over banner label size. That is the legend floor, not a bug.
 - Primary must remain **clearly larger** than secondary; both must remain **clearly larger** than the label floor.
 - Always judge legibility at **physical size** (mockup ~1.8″ diagonal), not only at full-screen browser zoom.
 - Shrinking primary/secondary to “make room” for more chrome is a **spec violation**, not a fix.

@@ -123,7 +123,7 @@
     const LEGEND_MIN_SCALE = 1.25;     // legends ≥ 25% above banner size
     // Value floors at 448×368 — must not regress smaller.
     const PRIMARY_VALUE_MIN_PX = 82;   // AFR value
-    const SECONDARY_VALUE_MIN_PX = 48; // RPM / TPS numbers
+    const SECONDARY_VALUE_MIN_PX = 53; // RPM / TPS (+10% from 48; do not regress)
     // Non-linear dial: expand 11–17; park 11 and 17 near bottom corners.
     const AFR_ARC_CONTROL = [
       [8.0, 0.0],
@@ -501,11 +501,22 @@
       const digitYAdj = digitY - up;
       const captionYAdj = captionY - up;
 
-      ctx.fillStyle = "#ff2a2a";
+      // Value color matches the current mixture band (same as lit segment color).
+      const valueColor = {
+        green: COLORS.green,
+        amber: COLORS.amber,
+        red: COLORS.red,
+        invalid: "#ff2a2a",
+      }[state.band] || COLORS.red;
+      ctx.fillStyle = valueColor;
       ctx.font = `bold ${digitPx}px Consolas, ui-monospace, monospace`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.shadowColor = "rgba(255,40,40,0.35)";
+      ctx.shadowColor = valueColor === COLORS.green
+        ? "rgba(34,197,94,0.35)"
+        : valueColor === COLORS.amber
+          ? "rgba(245,158,11,0.35)"
+          : "rgba(255,40,40,0.35)";
       ctx.shadowBlur = 8;
       ctx.fillText(readout, cx, digitYAdj);
       ctx.shadowBlur = 0;
@@ -529,7 +540,8 @@
       );
       // Legends flush against bottom (above a tiny pad for swipe dots).
       const legBaseline = L.h - 4;
-      const midY = L.auxTop + (legBaseline - legPx - L.auxTop) * 0.48;
+      // Slightly lower in the aux zone (numbers sit closer to their legends).
+      const midY = L.auxTop + (legBaseline - legPx - L.auxTop) * 0.58;
 
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";

@@ -201,11 +201,11 @@ This screen is **tiny** (≈1.8″). Type must stay **legible at physical size**
 1. **Label floor** — banner button-label size is the base for chrome text.
 2. **Legend floor** — value legend, dial legend, and RPM/TPS captions must be **≥ 25% larger** than the banner label size (do not shrink below this).
 3. **Primary value floor** — AFR **value** must never go below the current shipping primary size (**≥ 82 px** at 448×368).
-4. **Secondary value floor** — **RPM** and **TPS**/WOT numbers must never go below the current shipping secondary size (**≥ 48 px** at 448×368).
-5. Primary &gt; secondary &gt; legend floor ≥ label floor. Do not shrink values/legends to fit more chrome.
+4. **Secondary value floor** — **RPM** and **TPS**/WOT numbers must never go below the current shipping secondary size (**≥ 53 px** at 448×368).
+5. Primary &gt; secondary &gt; legend floor &gt; label floor. Do not shrink values/legends to fit more chrome.
 
-- **Value:** as large as practical above the primary floor; dominant.
-- **Value legend / dial legend / RPM·TPS captions:** at least the legend floor; value legend tight under the value; dial legend inside the aperture; RPM/TPS captions flush to the bottom.
+- **Value:** as large as practical above the primary floor; dominant. **Color matches the current mixture band** (same green/amber/red as the lit dial segment for that AFR — not a fixed red).
+- **Value legend / dial legend / RPM·TPS captions:** at least the legend floor (**intentionally larger than MODE/SEL**); value legend tight under the value; dial legend inside the aperture; RPM/TPS captions flush to the bottom; RPM/TPS numbers sit slightly above those captions.
 - Judge at **physical ~1.8″** size, not only when zoomed.
 
 **Dial scale (non-linear):** the arc is **not** linear in AFR. Expand the important midrange so **11** and **17** sit **near the bottom corners** (with 8 and 20); compress 8–11 and 17–20 so those end zones do not dominate the dial. Control points (AFR → arc fraction): **8→0**, **11→0.14**, **17→0.86**, **20→1**. Needle and segment colors use the same map.

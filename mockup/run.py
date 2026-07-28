@@ -46,8 +46,8 @@ CAPTION_OF_HALF = 0.12 * 1.5 * 1.35
 HARD_LABEL_OF_CHROME = 0.42  # banner size → label floor base
 # Value floors (device px at 448×368): must not regress smaller than these.
 PRIMARY_VALUE_MIN_PX = 82   # AFR value
-SECONDARY_VALUE_MIN_PX = 48  # RPM / TPS numbers
-# Legend floor: 25% above banner label size (do not shrink below this).
+SECONDARY_VALUE_MIN_PX = 53  # RPM / TPS (+10% from 48; do not regress)
+# Legend floor: 25% above banner label size (legends are intentionally larger than MODE/SEL).
 LEGEND_MIN_SCALE = 1.25
 
 
@@ -303,8 +303,14 @@ def render_gauge_svg(
         up = min(L["inner_half_h"], half) * 0.05
         digit_y -= up
         caption_y -= up
+        value_color = {
+            "green": "#22c55e",
+            "amber": "#f59e0b",
+            "red": "#ef4444",
+            "invalid": "#ff2a2a",
+        }.get(state.band.value, "#ef4444")
         parts.append(
-            f'<text x="{cx}" y="{digit_y:.1f}" fill="#ff2a2a" '
+            f'<text x="{cx}" y="{digit_y:.1f}" fill="{value_color}" '
             f'font-size="{digit_px}" font-weight="700" '
             f'font-family="Consolas, monospace" text-anchor="middle" '
             f'dominant-baseline="middle">{state.readout()}</text>'
@@ -327,7 +333,7 @@ def render_gauge_svg(
             round(L["aux_h"] * 0.36 * 1.2),
         )
         leg_baseline = h - 4
-        mid_y = L["aux_top"] + (leg_baseline - leg_px - L["aux_top"]) * 0.48
+        mid_y = L["aux_top"] + (leg_baseline - leg_px - L["aux_top"]) * 0.58
         parts.append(
             f'<text x="{left_x:.1f}" y="{mid_y:.1f}" fill="#f0f0f4" '
             f'font-size="{num_px}" font-weight="700" '
