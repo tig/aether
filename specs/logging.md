@@ -1,9 +1,9 @@
 # Aether logging — format & storage contract
 
-**Rev 0.1 · July 2026**  
+**Rev 0.2 · July 2026**  
 **Status:** Contract for implementation planning (not shipped firmware).  
 **Scope:** On-device log representation, channel/time/marker model, export matrix, session & naming conventions, interfaces to live bus and host pull.  
-**Not in scope:** Live serial/CAN framing ([#5](https://github.com/tig/aether/issues/5) → future `specs/inputs.md`), map R/W ([#4](https://github.com/tig/aether/issues/4)), full on-device graphing UI, cloud sync product.
+**Not in scope:** Live serial/CAN framing ([#5](https://github.com/tig/aether/issues/5) → [inputs.md](inputs.md) when merged), map R/W ([#4](https://github.com/tig/aether/issues/4)), full on-device graphing UI, cloud sync product.
 
 | Related | Link |
 |---------|------|
@@ -17,6 +17,16 @@
 
 Phrase book additions that appear on the face stay in [lexicon.md](lexicon.md); this file owns **file-format** terms.
 
+### Operator context (drives P0 export)
+
+| Fact | Value |
+|------|--------|
+| **Pilot ECU** | **[FOME](https://www.fome.tech/)** (Free Open Motorsports ECU; issue prose “FOAM” → FOME) |
+| **Tuner workflow** | Remote / shop tuner works primarily in **Innovate LogWorks** |
+| **P0 product outcome** | Operator can pull a session from Aether and **send a file the tuner opens in LogWorks** without a third proprietary tool chain |
+
+Internal store may still be MLVLG (MLV-native). **LogWorks handoff is P0**, not a later “if demand” item.
+
 ---
 
 ## 1. Goals & non-goals
@@ -26,9 +36,10 @@ Phrase book additions that appear on the face stay in [lexicon.md](lexicon.md); 
 1. **Always log** useful multi-channel time series without operator ritual ([#2](https://github.com/tig/aether/issues/2)).
 2. Use a **battle-tested ecosystem format** as the **internal/canonical** on-disk representation — not an Aether-only orphan binary.
 3. Open natively in **MegaLogViewer** (and TunerStudio’s log path) with full channel names, units, and **event markers**.
-4. Support **multi-format export** for spreadsheets, LLM/host tools, and secondary tuner apps.
-5. Fit **ESP32-S3** continuous write: fixed-width records, append-friendly, rotation, recoverable partial files.
-6. Align **sequence / user marks** with MLV marker semantics so “the lean spike I marked” is findable in standard tools and by host agents ([#1](https://github.com/tig/aether/issues/1)).
+4. **P0: LogWorks handoff** — host **must** produce a file openable in **Innovate LogWorks** so the operator can email/AirDrop/USB a session to a LogWorks-using tuner (FOME-based vehicle context).
+5. Support **multi-format export** for spreadsheets, LLM/host tools, and MLV/TS (MSL/CSV/JSON).
+6. Fit **ESP32-S3** continuous write: fixed-width records, append-friendly, rotation, recoverable partial files.
+7. Align **sequence / user marks** with MLV marker semantics so “the lean spike I marked” is findable in standard tools and by host agents ([#1](https://github.com/tig/aether/issues/1)).
 
 ### Non-goals
 
@@ -36,7 +47,7 @@ Phrase book additions that appear on the face stay in [lexicon.md](lexicon.md); 
 |----------|--------|
 | Inventing a closed proprietary-only log with “converter later” | Forbidden for v1 design |
 | Full on-device analysis suite | Export into existing tools is the win |
-| Implementing LogWorks-native `.log` write | Closed; use interchange if ever needed |
+| On-device write of closed LogWorks-native **`.log`** as canonical store | Spec not open; **export** to LogWorks-openable form is P0 instead |
 | Forcing ASAM MDF/MF4 as primary | OEM measurement stack; not the DIY tuner default for AFR review |
 | CAN bus framing | Later; logs may **contain** CAN-sourced channels once inputs exist |
 | Logger **face** layout | Separate UI work; face only needs logging LED + mark affordance ([afr-face.md](afr-face.md)) |
@@ -51,7 +62,8 @@ Phrase book additions that appear on the face stay in [lexicon.md](lexicon.md); 
 | Role | Format | Extension |
 |------|--------|-----------|
 | **Internal / on-device canonical** | **EFI Analytics MLVLG v2** (Binary MLG Logging) | **`.mlg`** |
-| Primary interchange / human-readable twin | TunerStudio / MLV ASCII datalog | **`.msl`** |
+| **Tuner handoff (LogWorks)** | **LogWorks-openable DIF** (primary) and/or **documented CSV import layout** | **`.dif`** / **`.csv`** |
+| Primary MLV/TS interchange | TunerStudio / MLV ASCII datalog | **`.msl`** |
 | Universal spreadsheet / scripts | Delimited text (CSV family) | **`.csv`** |
 | Host / LLM structured pull | JSON projection of the same channel model | **`.json`** (export / API, not primary store) |
 
@@ -93,8 +105,8 @@ Detail comparison: [docs/research/logging-formats.md](../docs/research/logging-f
 | **MSL `.msl`** | Text header lines + tab columns: **name row**, **units row**, then samples; markers as special lines | Debuggable, MLV/TS friendly, easy host parse | Larger; slower write; less dense on flash | TS default PC logs, MLV, SpeedyLogger-class tools | **P0 export** |
 | **CSV / `;` CSV** | Delimited rows; optional units row | Excel, Virtual Dyno, scripts | Markers often lost; weak schema | Everywhere | **P0 export** |
 | **JSON** | Object: fields + records + markers | LLM/host (#1), APIs | Verbose; not tuner-native graph | Host tools | **P0 host pull / P1 file export** |
-| **LogWorks `.log`** | Proprietary compact + settings | LogWorks UX for Innovate chain | Spec not open; reverse-engineer tax | Innovate LogWorks | **Not P0**; optional later if demand |
-| **LogWorks DIF** | Spreadsheet interchange | Excel path from LogWorks | Lossy vs native `.log` | Excel | Covered by our CSV |
+| **LogWorks `.log`** | Proprietary compact + settings | Native LogWorks UX | Spec not open; reverse-engineer tax — **not** on-device canonical | Innovate LogWorks | **Not** on-device writer; optional host research only |
+| **LogWorks DIF** | LogWorks dual open/save format; engineering quantities; also Excel path | **Tuner can open in LogWorks** without Innovate hardware chain | Some loss vs native `.log` (filters/settings); channel naming must match LogWorks expectations | Innovate LogWorks, Excel | **P0 export** (tuner handoff) |
 | **MS3/FRD SD proprietary** | ECU-specific binary, TS converts | Existing MS installs | Not general; TS conversion step | MegaSquirt SD | Out of scope as Aether writer |
 | **Speeduino SD** | CSV and/or MLG-class per firmware path | Open ECU precedent | Varies by board/firmware age | Speeduino + MLV | Validate interop; do not fork |
 | **MDF4 / MF4** | ASAM blocks, multi-rate, bus logging | Industry measurement exchange | Complexity, tooling outside DIY AFR | Vector, asammdf, CAN loggers | **P2+** only if CAN bulk archive needs it |
@@ -330,19 +342,36 @@ ECU: <identity if known>
 
 | Target | Priority | Producer | Fidelity notes |
 |--------|----------|----------|----------------|
-| **`.mlg` MLVLG v2** | **P0** | Device (canonical) + host re-pack if needed | Identity; markers retained |
+| **`.mlg` MLVLG v2** | **P0** | Device (canonical) + host re-pack if needed | Identity; markers retained; MLV open |
+| **LogWorks DIF (`.dif`)** | **P0 — tuner handoff** | Host **must** | File **opens in Innovate LogWorks** with Time + λ/AFR + RPM + load (+ other P0 channels). Prefer DIF because LogWorks documents `.log` **or** `.dif` as first-class log files ([LogWorks 3 manual](https://www.racedom.com/media/catalog/down/LogWorks3_Manual.pdf)). Engineering units; document any marker loss. |
+| **LogWorks CSV import layout** | **P0 alternate** | Host **must** if DIF blocked | Documented row layout that LogWorks (or common LogWorks import recipes) accepts; golden sample verified in LogWorks. Use when DIF writer is incomplete — **must not** ship “CSV only for Excel” as the sole tuner path. |
 | **`.msl`** | **P0** | Host **must**; device **should** if CPU/media allow | Tab-separated; name + units rows; markers as lines; scaled engineering values |
-| **`.csv`** | **P0** | Host **must**; device optional | Comma or semicolon selectable; document delimiter; markers via column or sidecar |
+| **`.csv`** (generic) | **P0** | Host **must**; device optional | Comma or semicolon selectable; document delimiter; markers via column or sidecar |
 | **JSON** (file or HTTP/BT payload) | **P0** for **host pull API**; **P1** as on-disk export | Host / bridge | Fields, records, markers, info — for [#1](https://github.com/tig/aether/issues/1) LLM tools |
 | Virtual Dyno–style `;` CSV | **P1** | Host | Same as CSV with `;` and required column aliases if documented |
-| LogWorks DIF / `.log` | **P2** | Host only if users demand | Do not block P0 |
+| LogWorks native **`.log`** | **P2** research only | Host | Closed format; only if DIF/CSV handoff fails real tuners |
 | MDF4 | **P2+** | Host | Only if CAN archive / OEM toolchain appears |
 | Parquet / DB | Out of scope | — | |
+
+### 9.1 LogWorks handoff (normative P0)
+
+**Operator story:** FOME-based car → Aether always-on log → pull session → send file to tuner → tuner opens in **LogWorks** and graphs mixture vs RPM/load.
+
+| Requirement | Rule |
+|-------------|------|
+| **Must** | One host action produces a **LogWorks-openable** artifact (`.dif` preferred, or documented CSV layout). |
+| **Must** | Include at least `Time`, mixture (`Lambda` and/or `AFR`), `RPM`, and load (`TPS` and/or `MAP`) in engineering units. |
+| **Must** | Golden acceptance: open the export in LogWorks (manual QA or CI screenshot/note) without third-party converters. |
+| **Should** | Preserve user/`SEQ_*` marks as channels or annotations LogWorks can show; if not, emit a sidecar mark list with the same time base and label the export **lossy for marks**. |
+| **Must not** | Claim P0 complete if the only exports are `.mlg`/`.msl` that the LogWorks-using tuner cannot open. |
+| **Must not** | Require the tuner to install MegaLogViewer solely to read Aether logs (MLV remains first-class for the operator; LogWorks is first-class for the **tuner handoff**). |
+
+Native LogWorks **`.log`** remains non-canonical (closed). Reverse-engineering it is **not** P0 if DIF/CSV handoff works.
 
 ### Export rules
 
 - **Must** apply scale/transform so exported numeric values are engineering units unless the format stores raw+scale (MLG).
-- **Must** preserve marker timestamps relative to the same time base.
+- **Must** preserve marker timestamps relative to the same time base (MLG/MSL); LogWorks exports follow §9.1.
 - **Should** keep channel order stable: `Time`, mixture, `RPM`, load, then others.
 - Lossy exports **must** be labeled (e.g. CSV without markers → warn in host UI).
 
@@ -354,7 +383,7 @@ High level only (transport detail lives with wireless/host specs):
 
 | Path | Behavior |
 |------|----------|
-| **USB** | CDC or MSC: list sessions, download `.mlg`, optional on-the-fly `.msl`/`.csv`/JSON |
+| **USB** | CDC or MSC: list sessions, download `.mlg`, optional on-the-fly `.msl`/`.csv`/`.dif`/JSON |
 | **Bluetooth / Wi-Fi** | Same logical **log store API**: list → get metadata → get bytes / stream convert |
 | **SD physical pull** | User removes card; files already MLV-ready |
 | **LLM / agent** | Prefer JSON summary + deep-link to full `.mlg`, or full JSON for short sessions; use marker grammar to answer “at the mark…” |
@@ -414,10 +443,11 @@ Implementers **must** follow the published MLVLG v2 layout. Critical constants:
 | **P0a** | Channel model + MLG writer library (host-first or firmware unit-testable) | Writes v2 file openable in MLV; markers visible |
 | **P0b** | Always-on session + rotation on available media | Boot → file grows; power-loss leaves openable prefix |
 | **P0c** | User mark + `SEQ_START`/`SEQ_END` | Markers in MLV; grammar stable |
-| **P0d** | Host export: MSL + CSV; pull list/download over USB | Issue #3 export story usable on bench |
+| **P0d** | Host export: **LogWorks DIF (or CSV layout)** + MSL + generic CSV; pull list/download over USB | **Tuner opens export in LogWorks**; operator opens `.mlg`/`.msl` in MLV |
+| **P0e** | FOME-sourced channel naming aliases for LogWorks-friendly labels | Documented alias table; golden LogWorks session from FOME live path (#5) |
 | **P1** | JSON pull for agents; drive tags; dual AFR channels; alarm auto-markers | [#1](https://github.com/tig/aether/issues/1) can fetch + cite marks |
-| **P1b** | Device-side MSL/CSV if media/CPU allow | Optional convenience |
-| **P2** | Extra exports (Virtual Dyno presets, DIF/MDF if demanded) | Data-driven |
+| **P1b** | Device-side MSL/CSV/DIF if media/CPU allow | Optional convenience |
+| **P2** | Extra exports (Virtual Dyno presets; native `.log` only if DIF fails field tuners) | Data-driven |
 | **P2+** | On-device review/playback UI | Separate UX spec |
 
 ---
@@ -433,7 +463,9 @@ Do **not** invent hardware answers in firmware PRs until product decides:
 5. USB MSC vs explicit pull API as primary offline path?
 6. Whether speech mark transcription runs on-device or only via host ([#2](https://github.com/tig/aether/issues/2))?
 7. Exact FAT mount layout and wear-leveling budget?
-8. Is FOAM (or other niche open ECU) in the first pilot set for **live** inputs, or log-format-only interop via MLG/CSV?
+8. ~~FOAM pilot?~~ **Resolved for product:** pilot ECU is **FOME**; live path is [#5](https://github.com/tig/aether/issues/5) / `inputs.md`.
+9. Exact LogWorks DIF channel header strings that match the tuner’s LogWorks version (validate with real LogWorks install)?
+10. Prefer email-sized compressed export vs full-rate DIF for long always-on sessions?
 
 ---
 
@@ -446,11 +478,13 @@ A logging implementation claim is **done** for P0 when:
 3. [ ] User marker appears at correct relative time with readable text.
 4. [ ] `SEQ_START` / `SEQ_END` markers round-trip in `.mlg` and `.msl` export.
 5. [ ] Continuous logging survives ≥ 10 minutes without drop-to-zero timebase; rotation creates a new valid file.
-6. [ ] Host export produces `.msl` and `.csv` with engineering units.
-7. [ ] Truncated final record does not prevent opening prior samples.
-8. [ ] No reliance on an undocumented Aether-only binary as the only durable form.
-9. [ ] Documented channel list and marker grammar match this spec rev.
-10. [ ] Face logging indicator still matches [afr-face.md](afr-face.md) (no extra face chrome required by this spec).
+6. [ ] Host export produces `.msl` and generic `.csv` with engineering units.
+7. [ ] **LogWorks handoff:** host produces `.dif` (preferred) or documented CSV layout; file **opens in Innovate LogWorks** with Time + mixture + RPM + load visible.
+8. [ ] Operator can send that LogWorks file to a third party without requiring them to install MegaLogViewer.
+9. [ ] Truncated final record does not prevent opening prior samples.
+10. [ ] No reliance on an undocumented Aether-only binary as the only durable form.
+11. [ ] Documented channel list and marker grammar match this spec rev.
+12. [ ] Face logging indicator still matches [afr-face.md](afr-face.md) (no extra face chrome required by this spec).
 
 ---
 
@@ -464,7 +498,8 @@ A logging implementation claim is **done** for P0 when:
 | **Sequence** | Operator-bounded interval (`SEQ_START`…`SEQ_END`) |
 | **Drive tag** | Label for duty (street/track/…) via name and/or marker/Info |
 | **Canonical log** | On-device `.mlg` MLVLG v2 |
-| **Projection** | Export (MSL/CSV/JSON) derived from canonical |
+| **Projection** | Export (MSL/CSV/JSON/DIF) derived from canonical |
+| **Tuner handoff** | LogWorks-openable export for a remote/shop tuner |
 
 ---
 

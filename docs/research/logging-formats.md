@@ -134,7 +134,7 @@
 ### Aether role
 
 - Do **not** use as internal format.
-- Users who need LogWorks can use CSV/DIF-like export later (**P2**); P0 success does not depend on LogWorks.
+- **Product update (rev 0.2):** operator’s tuner uses LogWorks; **LogWorks-openable DIF (or documented CSV) is P0 export**, not P2. Native `.log` write remains non-canonical (closed). See [specs/logging.md](../../specs/logging.md) §9.1.
 
 ---
 
@@ -204,4 +204,4 @@
 1. Host-side MLG writer + golden file opened in MLV (manual QA) and parsed by automated test.
 2. Port writer to firmware behind a thin `log_write_sample` / `log_write_marker` API fed by canonical channels from inputs (#5).
 3. Rotation, media drivers, USB list/get for #1.
-4. Do not start on LogWorks or MDF until P0 acceptance in [specs/logging.md](../../specs/logging.md) §15 is green.
+4. **LogWorks DIF/CSV handoff is P0** (tuner workflow). Defer native `.log` reverse-engineering and MDF until DIF handoff is green in §15.
