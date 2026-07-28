@@ -15,7 +15,7 @@ Screen-specific layout lives elsewhere (see [Spec map](#spec-map)). Do not dump 
 | **[specs/spec.md](spec.md)** (this file) | Product mission, hardware target, value requirements (HW + SW) |
 | **[specs/afr-face.md](afr-face.md)** | **AFR screen only** — layout, dial, type, RPM/TPS on that face |
 | **[specs/lexicon.md](lexicon.md)** | Face and product phrase book |
-| **[specs/logging.md](logging.md)** | Logging formats (canonical MLG), markers, export, storage |
+| **[specs/logging.md](logging.md)** | Logging formats (canonical MLG), markers, export, storage; §14 OSS leverage |
 | *future* `specs/setup.md` | First-run, profiles, fuels, alarms config |
 | *future* `specs/inputs.md` | Serial / CAN / sensor wiring and identity |
 
@@ -268,6 +268,6 @@ Systems that meet **must-have** and **highly valuable** items turn oxygen measur
 |------|------|
 | `mockup/` | Host-runnable AFR face (simulated AFR, RPM, TPS) |
 | `docs/images/afr-face-mockup.gif` | Visual target for the AFR screen |
-| `docs/research/logging-formats.md` | Non-normative format survey behind logging.md |
+| `docs/research/logging-formats.md` | Non-normative format survey + OSS leverage map behind logging.md |
 | `firmware/`, `host/` | C plate (identity, host tests) |
 | [README.md](../README.md) | Human entry |

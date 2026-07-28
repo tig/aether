@@ -1,8 +1,8 @@
 # Research notes — ECU / tuner log formats
 
-**Date:** July 2026  
+**Date:** July 2026 (OSS map expanded same month)  
 **Purpose:** Survey backing for [specs/logging.md](../../specs/logging.md). **Non-normative** — the contract is the spec.  
-**Issue:** [tig/aether#3](https://github.com/tig/aether/issues/3)
+**Issue:** [tig/aether#3](https://github.com/tig/aether/issues/3) · PR [#6](https://github.com/tig/aether/pull/6)
 
 ---
 
@@ -155,11 +155,12 @@
 
 ---
 
-## 7. FOAM and other open ECUs
+## 7. FOME (issue prose “FOAM”) and other open ECUs
 
-- Issue #3 asks to survey FOAM. At research time, **no durable public FOAM-native log format** was found that is widely used as an interchange standard comparable to MLG/MSL.
-- Practical approach: if FOAM (or peers) already export CSV/MLG-compatible streams, **consume via live protocol (#5)** and still **store MLG**. If a FOAM-native file appears later, add an import adapter — do not block the canonical choice.
-- Recorded as **open question** in the contract.
+- **Product resolution:** pilot ECU is **[FOME](https://www.fome.tech/)** ([FOME-Tech/fome-fw](https://github.com/FOME-Tech/fome-fw), **GPL-3.0**).
+- FOME wiki documents **MLG** as the typical datalog format (TunerStudio path); no separate FOME-only file format for interchange.
+- **Do not link** FOME firmware into Aether; use live protocol (#5) and still **store MLG** on device.
+- GPL code is **reference / interop only** (channel naming for P0e), not a reusable library.
 
 ---
 
@@ -199,9 +200,120 @@
 
 ---
 
-## 11. Follow-up implementation handoff
+## 11. OSS leverage map (host + metal)
 
-1. Host-side MLG writer + golden file opened in MLV (manual QA) and parsed by automated test.
+**Date of survey:** July 2026 · **Goal:** do not reinvent parsers/writers when a **permissive** library already fits.  
+**License policy (Aether product):**
+
+| Layer | Prefer | Copyleft (GPL/LGPL/AGPL) |
+|-------|--------|---------------------------|
+| **Metal (firmware link)** | MIT / Apache-2.0 / BSD / ISC / Unlicense / BSL / Zlib | **Reject** for static/dynamic link into Aether firmware |
+| **Host tools / CLI converters** | MIT / Apache preferred | OK as **standalone** CLI (no firmware link); quarantine in docs; do not vendor into product binary without legal review |
+| **Reference study only** | Any open source | May **read** algorithms; **do not copy** GPL source into Aether trees |
+
+**Closed / non-OSS (for honesty):** MegaLogViewer, TunerStudio, LogWorks UI — use as **QA consumers**, not as libraries.
+
+### 11.1 Candidate inventory (verified)
+
+| Name | URL | License (SPDX) | Lang / platform | What it does | Maturity | Fit for Aether | Integration cost | Gaps |
+|------|-----|----------------|-----------------|--------------|----------|----------------|------------------|------|
+| **mlg-converter** | https://github.com/karniv00l/mlg-converter | **MIT** (LICENSE verified) | TypeScript / Node ≥14 | **Parse** MLVLG v1/v2; export **CSV (`;`)**, **MSL**, **JSON**; npm + CLI | ~27★; last push ~2023-05; tests present; topics include FOME/Speeduino | **Host:** golden-test **reader** + optional export path | `npm i mlg-converter` or CLI; no metal | **No writer**; markers stripped from CSV; not Python |
+| **mlg-cli** (HyperTuner) | https://github.com/hyper-tuner/mlg-cli | **MIT** | Rust CLI | Convert MLG → other formats (CSV/JSON family) | ~6★; last push ~2023-03; 5 commits | **Host** secondary verifier | Cargo binary / releases | Small project; not a library for Python gate |
+| **racing-data-converter** | https://github.com/BenergyRacing/racing-data-converter | **GPL-2.0** | TypeScript / Node | **`MlgWriter`** + **`MslWriter`** (MLVLG v2 header/blocks), Motec CSV, etc. | ~27★; last push ~2024-05; jest tests | **Host-only** reference / optional standalone CLI — **not** product link | npm; streams API | **GPL** → quarantine for product; Node not Python; metal N/A |
+| **Speeduino-Copilot** | https://github.com/minceheid/Speeduino-Copilot | **GPL-3.0** | C++ (Teensy) | Embedded **MGVLG writer** (`mgvlg.h` / `mgvlg.ino`) + Speeduino serial | ~6★; last push ~2021-01; incomplete | **Reference only** for embedded field packing | Copy forbidden under GPL into Aether | GPL; Speeduino-specific; incomplete; not ESP-IDF |
+| **rusEFI firmware** | https://github.com/rusefi/rusefi | **GPL-3.0** + extra terms (license.txt) | C/C++ STM32 | Production **onboard SD MLG** logging (see Logging Guide) | Large mature ECU project | **Reference** (how production MLG writers behave) — **no link** | N/A (GPL metal) | Entire ECU stack; cannot ship inside Aether |
+| **FOME firmware** | https://github.com/FOME-Tech/fome-fw | **GPL-3.0** (+ rusEFI-lineage terms in LICENSE) | C | Pilot ECU; **MLG via TS / SD** (wiki: default MLG naming) | ~129★; active 2026 | **Interop** + channel-name study for P0e — **not** a library | Protocol (#5), not file code | GPL; not a reusable log lib |
+| **Speeduino** | https://github.com/speeduino/speeduino | **GPL-2.0** | C++ Arduino | SD / TS logging paths | ~1.8k★ | Interop precedent only | GPL | Not a library |
+| **UltraLog** | https://github.com/ClassicMiniDIY/UltraLog | **AGPL-3.0** | Rust (desktop viewer) | MLG/CSV viewer; **FORMAT_SPECIFICATIONS.md** documents MLG | ~34★; active 2026 | Host QA viewer optional; **do not link** AGPL | External tool | AGPL; not a writer; not embeddable |
+| **SpeedyLogger** | https://github.com/ric355/SpeedyLogger | **Unknown** (no LICENSE on repo) | Pascal / bare-metal RPi | Writes sequential **`dl######.msl`** from Speeduino | ~23★; last push ~2021 | Quarantine (license) | High port cost | Unknown license; MSL only; not ESP32 |
+| **SheetJS Community (xlsx)** | https://github.com/SheetJS/sheetjs · docs.sheetjs.com | **Apache-2.0** (CE) | JS/TS | Read/write many spreadsheets including **spreadsheet DIF** | Very mature ecosystem | **Host:** candidate for **LogWorks DIF** if LogWorks accepts classic spreadsheet DIF | npm package | **Not** LogWorks-native `.log`; Node-centric; validate in real LogWorks |
+| **Python `csv` / `struct` / `json`** | stdlib | PSF (permissive) | Python | Host MSL/CSV/JSON/binary packing | Universal | **Host gate default** (matches aether mockup Python) | Zero deps | Still write format logic ourselves |
+| **asammdf** | https://pypi.org/project/asammdf/ | **LGPL-3.0+** | Python | MDF/MF4 R/W | Mature | **P2+ host only** if MDF export appears; LGPL dynamic-link care | pip | Overkill for P0; not MLG/MSL |
+| **mdflib** | https://github.com/ihedvall/mdflib | **MIT** | C++ | MDF3/4 R/W | Active | P2+ host/native if needed | CMake | Not P0 |
+| **littlefs** | https://github.com/littlefs-project/littlefs | **BSD-3-Clause** | C | Fail-safe FS for MCU flash | Very mature | **Metal media** for internal flash ring/sessions | ESP-IDF component (`joltwallet/littlefs`) | Not a log **format**; append perf caveats on large files |
+| **ESP-IDF FatFs + SDMMC** | https://docs.espressif.com/…/fatfs.html · sdmmc | Apache-2.0 (IDF); FatFs BSD-style; SDMMC BSD-derived | C | SD card mount, append files, VFS | Production Espressif | **Metal media** for microSD continuous log | Built into ESP-IDF | Not format-specific |
+| **Innovate OT-2 SDK** | https://github.com/Innovate/OT-2-SDK | Vendor / not a file-format OSS stack | — | OT-1b/OT-2 OBD adapter SDK | Vendor | **Neither** for Aether log files | N/A | Does **not** implement LogWorks `.log`/DIF writers for third-party loggers |
+| **MegaLogViewer** | EFI Analytics (commercial) | Proprietary | Desktop | Canonical MLG **viewer** | Dominant DIY | **QA open** of golden `.mlg` / `.msl` | Manual QA | Closed; not a library |
+
+### 11.2 LogWorks DIF vs spreadsheet DIF
+
+LogWorks documentation (LogWorks 2/3 manuals) states:
+
+- Logs are stored as **native `.log`** **or** **`.dif`**.
+- **`.log`:** compact native; keeps measurement points, filters, input settings — **spec not openly published** for third-party writers.
+- **`.dif`:** used to move log data into **spreadsheet programs (e.g. Excel)**; stores **already-converted engineering quantities**; re-import into LogWorks is **lossy** for filters/settings.
+
+Classic **Data Interchange Format** (Software Arts / VisiCalc era; Wikipedia: `TABLE` / `VECTORS` / `TUPLES` / `DATA` / `BOT` / `EOD` chunks) is what spreadsheet tools call `.dif`. LogWorks marketing of “DIF” aligns with that **spreadsheet interchange** path, **not** a separate published binary LogWorks schema.
+
+**Implications for Aether P0:**
+
+1. Prefer generating **classic spreadsheet DIF** (or a documented CSV layout LogWorks can import) with columns Time, Lambda/AFR, RPM, load.
+2. **Validate with a real LogWorks install** before claiming handoff (open question already in the contract).
+3. Do **not** reverse-engineer native `.log` for P0 if DIF/CSV opens.
+4. SheetJS `bookType: 'dif'` (Apache-2.0) or a **~50-line Python DIF writer** are both viable; pure Python preferred for aether’s host gate.
+
+### 11.3 Leverage vs invent (summary)
+
+| Artifact | Leverage | Invent (Aether owns) |
+|----------|----------|----------------------|
+| On-device **MLVLG v2 writer** | Format PDF; *algorithm* hints from GPL writers (no copy) | **C writer** (no permissive C library found) |
+| Host **MLG golden tests** | **mlg-converter** parse (MIT) + MLV manual open | Host **writer** (Python/`struct` or small C shared with metal) |
+| **MSL export** | Pattern from mlg-converter / racing-data-converter (GPL = don’t copy) | Trivial tab writer in Python/C — **do not pull GPL** |
+| **CSV export** | stdlib / no library | Dialect docs only |
+| **LogWorks DIF** | Spreadsheet DIF spec + optional SheetJS | Channel layout + **LogWorks open validation** |
+| **JSON pull** | stdlib | Schema for #1 |
+| **Media** | ESP-IDF FatFs/SDMMC, littlefs | Session rotation, flush policy, naming |
+| **Native LogWorks `.log`** | None open | **P2 research only** if DIF fails |
+
+### 11.4 Reject / quarantine list
+
+| Item | Reason |
+|------|--------|
+| rusEFI / FOME / Speeduino **firmware source** linked into Aether | **GPL** metal |
+| racing-data-converter **vendored** into product | **GPL-2.0** |
+| Speeduino-Copilot code into firmware | **GPL-3.0** |
+| UltraLog linked or server-side | **AGPL-3.0** |
+| SpeedyLogger source | **Unknown license** |
+| Innovate native `.log` RE as P0 | Closed; product chose DIF/CSV handoff |
+| MegaLogViewer as dependency | Proprietary binary |
+| asammdf / MDF for P0 | Wrong ecosystem; LGPL careful use only if P2+ |
+
+### 11.5 Recommended stack (non-normative; contract in `specs/logging.md`)
+
+**Metal (ESP32-S3 / ESP-IDF):**
+
+- Media: ESP-IDF **SDMMC + FatFs** (SD SKU) and/or **littlefs** (internal flash SKU).
+- Format: **Aether-owned** small C MLVLG v2 writer (header + type-0 records + type-1 markers). Implement from EFI Analytics PDF; host/firmware **share** the same packing rules.
+- Do **not** depend on GPL ECU trees for code.
+
+**Host (Python mockup / CI / pull tools):**
+
+- **Write** MLG: Aether Python (or shared C unit-tested via host plate) — **must** pass `mlg-converter` parse + MLV open.
+- **Read/verify:** `mlg-converter` (MIT) in CI optional gate; manual MLV QA remains gold.
+- **MSL/CSV/JSON:** Python stdlib writers following §9 of the contract.
+- **LogWorks:** spreadsheet DIF writer (Python preferred) **or** documented CSV; golden open in LogWorks.
+
+**Do not reimplement if X works:**
+
+- Do not write a second MLG **parser** if `mlg-converter` covers CI readback.
+- Do not invent a proprietary on-device binary when MLG writer exists in-tree.
+- Do not reverse-engineer LogWorks `.log` while DIF/CSV handoff is green.
+- Do not vendor GPL “because it already writes MLG.”
+
+### 11.6 Gaps we still invent (honest)
+
+1. **Permissive C continuous MLG appender** suitable for ESP32 (RAM buffer, CRC, 10 µs wrap, markers) — **no OSS package**.
+2. **Host MLG writer** under MIT/Apache that is first-class (existing writers are GPL or TS-only).
+3. **LogWorks-proven DIF column layout** for Aether channels (empirical QA).
+4. **Marker-preserving MSL** export (mlg-converter is a reference for read→MSL; writer is ours).
+5. **Session rotation / wear / power-loss** policy on Aether media stack.
+
+---
+
+## 12. Follow-up implementation handoff
+
+1. Host-side MLG writer + golden file opened in MLV (manual QA) and parsed by **mlg-converter** (or equivalent) automated test.
 2. Port writer to firmware behind a thin `log_write_sample` / `log_write_marker` API fed by canonical channels from inputs (#5).
-3. Rotation, media drivers, USB list/get for #1.
-4. **LogWorks DIF/CSV handoff is P0** (tuner workflow). Defer native `.log` reverse-engineering and MDF until DIF handoff is green in §15.
+3. Rotation, media drivers (FatFs/SDMMC and/or littlefs), USB list/get for #1.
+4. **LogWorks DIF/CSV handoff is P0** (tuner workflow). Defer native `.log` reverse-engineering and MDF until DIF handoff is green in the contract acceptance list.
+5. Wire host export matrix using stdlib + DIF writer; keep GPL tools as external optional CLIs only.

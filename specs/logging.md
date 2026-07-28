@@ -1,6 +1,6 @@
 # Aether logging — format & storage contract
 
-**Rev 0.2 · July 2026**  
+**Rev 0.3 · July 2026**  
 **Status:** Contract for implementation planning (not shipped firmware).  
 **Scope:** On-device log representation, channel/time/marker model, export matrix, session & naming conventions, interfaces to live bus and host pull.  
 **Not in scope:** Live serial/CAN framing ([#5](https://github.com/tig/aether/issues/5) → [inputs.md](inputs.md) when merged), map R/W ([#4](https://github.com/tig/aether/issues/4)), full on-device graphing UI, cloud sync product.
@@ -452,7 +452,60 @@ Implementers **must** follow the published MLVLG v2 layout. Critical constants:
 
 ---
 
-## 14. Open questions
+## 14. Implementation leverage (OSS)
+
+**Normative-ish for implementers.** Prefer existing **permissive** code over reimplementation. Full survey: [docs/research/logging-formats.md](../docs/research/logging-formats.md) §11.  
+**License rule:** **do not** link GPL/LGPL/AGPL into Aether **firmware**. Copyleft is allowed only as **standalone host CLIs** (subprocess / separate install), not as a linked product library.
+
+### 14.1 Recommended stack by phase
+
+| Phase | Metal (ESP-IDF / C) | Host (Python gate + optional Node) | Do not reimplement if… |
+|-------|---------------------|------------------------------------|------------------------|
+| **P0a** MLG writer | **Write** Aether `log_mlg` (C) from [MLVLG v2 PDF](http://www.efianalytics.com/TunerStudio/docs/MLG_Binary_LogFormat_2.0.pdf): header, field defs, type-0 sample, type-1 marker, CRC | Host twin writer (`struct` packing) **or** unit-test the C lib on host; **verify** with [mlg-converter](https://github.com/karniv00l/mlg-converter) (**MIT**, parse v1/v2 → MSL/CSV/JSON) + MLV manual open | …mlg-converter already **parses** your golden file; do not invent a second MLG **parser** for CI |
+| **P0b** session/media | **ESP-IDF FatFs + SDMMC** (SD) and/or **littlefs** (**BSD-3-Clause**) for internal flash; append whole records; rotation | Host fixtures only | …ESP-IDF already mounts SD/FAT and littlefs; do not invent a filesystem |
+| **P0c** markers | Type-1 blocks + Aether grammar (§6) in the same C writer | Assert markers via mlg-converter / MLV | …MLG already has markers |
+| **P0d** exports | Optional later (P1b) | **Must:** MSL + generic CSV + **LogWorks DIF or CSV layout** via **Python stdlib** (+ small DIF writer). Optional: SheetJS CE (**Apache-2.0**) `dif` book type if host is Node | …stdlib CSV/JSON suffice; do not pull GPL **racing-data-converter** into the product tree |
+| **P0e** FOME names | N/A (channel aliases) | Document aliases from FOME/TS logs; live path is [#5](https://github.com/tig/aether/issues/5) | …do not fork FOME (**GPL-3.0**) for naming tables |
+| **P1** JSON pull | Optional device JSON | stdlib `json` for [#1](https://github.com/tig/aether/issues/1) | …no third-party JSON log format lib required |
+| **P2+** MDF | No | [asammdf](https://pypi.org/project/asammdf/) (**LGPL-3.0+**, host careful) or [mdflib](https://github.com/ihedvall/mdflib) (**MIT**) only if product needs MF4 | …not P0 |
+
+### 14.2 On-device: what we write vs vendor
+
+| Piece | Source |
+|-------|--------|
+| MLVLG v2 binary packing, markers, CRC, 10 µs time wrap | **Aether-owned C** (no permissive embedded MLG library found) |
+| Byte-swap helpers, ring buffer, rotation | Aether |
+| SD / flash FS, VFS, SDMMC | **ESP-IDF** components (Apache-2.0 / BSD-style FatFs) |
+| littlefs (if flash SKU) | **littlefs** BSD-3-Clause via ESP component registry |
+| rusEFI / FOME / Speeduino / Speeduino-Copilot log writers | **Study only** — all **GPL**; **must not** copy into firmware |
+
+### 14.3 Host: depend / vendor for gates
+
+| Need | Recommended | Notes |
+|------|-------------|-------|
+| MLG **read** / golden regression | **mlg-converter** (MIT) as CI tool or `npm` devDep | Optional secondary: [hyper-tuner/mlg-cli](https://github.com/hyper-tuner/mlg-cli) (MIT, Rust) |
+| MLG **write** (fixtures) | Aether Python or shared C | Do not vendor [racing-data-converter](https://github.com/BenergyRacing/racing-data-converter) (**GPL-2.0**) into product; algorithm reference only |
+| MSL / CSV / JSON export | Python stdlib | Match §9 dialects; preserve markers in MSL |
+| LogWorks handoff | Spreadsheet **DIF** writer (Python) or documented CSV; optional SheetJS CE Apache-2.0 | LogWorks manuals treat DIF as Excel-friendly engineering dump — validate open in real LogWorks (§9.1) |
+| Manual QA | MegaLogViewer (operator), LogWorks (tuner) | Proprietary viewers; not libraries |
+
+### 14.4 Explicit non-leverage (reject for product link)
+
+- **GPL-3.0 / GPL-2.0 firmware:** rusEFI, FOME, Speeduino, Speeduino-Copilot — no static or dynamic link into Aether metal.
+- **AGPL-3.0:** UltraLog — external viewer only, not a dependency.
+- **Unknown license:** SpeedyLogger — do not copy.
+- **Closed:** LogWorks native `.log` writer, MegaLogViewer internals — export **to** them, do not embed.
+
+### 14.5 Gaps Aether must invent
+
+1. Permissive **continuous MLG appender** for ESP32-S3 (RAM buffer, flush policy, truncated-file recovery).
+2. **Host MLG writer** under project license for golden fixtures (community writers are parse-only MIT or write under GPL).
+3. **LogWorks-validated** DIF/CSV column layout for P0 channels.
+4. Marker-preserving **MSL** and marker policy for CSV (column or sidecar).
+
+---
+
+## 15. Open questions
 
 Do **not** invent hardware answers in firmware PRs until product decides:
 
@@ -469,7 +522,7 @@ Do **not** invent hardware answers in firmware PRs until product decides:
 
 ---
 
-## 15. Acceptance criteria (future implementation)
+## 16. Acceptance criteria (future implementation)
 
 A logging implementation claim is **done** for P0 when:
 
@@ -488,7 +541,7 @@ A logging implementation claim is **done** for P0 when:
 
 ---
 
-## 16. Lexicon (logging)
+## 17. Lexicon (logging)
 
 | Term | Meaning |
 |------|---------|
@@ -503,14 +556,17 @@ A logging implementation claim is **done** for P0 when:
 
 ---
 
-## 17. References (research anchors)
+## 18. References (research anchors)
 
 - EFI Analytics, *Binary MLG Logging (MLVLG) file format specification* v2 — http://www.efianalytics.com/TunerStudio/docs/MLG_Binary_LogFormat_2.0.pdf  
 - MegaLogViewer / TunerStudio product pages (EFI Analytics)  
 - rusEFI Logging Guide (TS + SD → `.mlg`) — https://wiki.rusefi.com/Logging-Guide/  
 - Speeduino SD logging docs / community MLG+CSV practice  
-- Innovate LogWorks manuals (`.log` native, DIF for Excel)  
-- mlg-converter (community MLG → MSL/CSV/JSON) — https://github.com/karniv00l/mlg-converter  
+- Innovate LogWorks manuals (`.log` native, DIF for Excel / spreadsheet path)  
+- mlg-converter (MIT; MLG → MSL/CSV/JSON parse) — https://github.com/karniv00l/mlg-converter  
+- mlg-cli (MIT; Rust convert) — https://github.com/hyper-tuner/mlg-cli  
+- racing-data-converter (GPL-2.0; host-only reference writer) — https://github.com/BenergyRacing/racing-data-converter  
+- littlefs (BSD-3-Clause) — https://github.com/littlefs-project/littlefs  
 - ASAM MDF overview (secondary) — https://www.asam.net/standards/detail/mdf/  
 
-Non-normative narrative: [docs/research/logging-formats.md](../docs/research/logging-formats.md).
+Non-normative narrative + OSS tables: [docs/research/logging-formats.md](../docs/research/logging-formats.md).
