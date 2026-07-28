@@ -39,7 +39,7 @@ Reference visual: commercial 52 mm digital wideband (arc LEDs + 7-segment-style 
 | Color bands | **Green** near stoich / slightly rich-good; **amber** transition; **red** at rich and lean extremes |
 | Center | Large **one-decimal** numeric AFR |
 | Label | **AIR/FUEL RATIO** |
-| Face shape | **Square** panel; ring outer ~**70%** of half-width (sides/top 30% smaller than edge-flush); **rounded-square** inner aperture (~62% half) for a large AFR readout; outer edge longer toward corners |
+| Face shape | **Square** panel; LED outer **flush to display L/T/R**; **rounded-square** inner aperture (~71% half — band ~30% thinner than first full-flush ring) for a large AFR readout; outer longer toward corners |
 | Caption | **AIR/FUEL RATIO** bottom-justified just above MODE/SEL |
 | Stoich mark | Segment at **~14.7** stays slightly highlighted even when not fill-lit |
 | Scale labels | Large readable ticks: **8 · 11 · 13 · 15 · 17 · 20** |

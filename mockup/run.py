@@ -51,10 +51,9 @@ def _segment_svg_color(band: str, lit: bool, *, stoich: bool = False) -> str:
     return "#1a1a1e"
 
 
-# Ring envelope: sides/top 30% smaller than full face half → more open center.
-OUTER_SCALE = 0.70
-# Larger rounded-square hole so AFR digits can grow.
-INNER_SCALE = 0.62
+# Outer flush to display. Band ~30% thinner than early full-flush ring
+# (inner 0.58→0.706 of half) so AFR digits have more room inside.
+INNER_SCALE = 0.706
 
 
 def _layout(size: int = FACE_SIZE) -> dict:
@@ -63,7 +62,6 @@ def _layout(size: int = FACE_SIZE) -> dict:
     btn_h = strip_h
     btn_w = (size - BTN_GAP) / 2
     half = size / 2.0
-    outer_half = half * OUTER_SCALE
     inner_half = half * INNER_SCALE
     return {
         "size": size,
@@ -72,7 +70,6 @@ def _layout(size: int = FACE_SIZE) -> dict:
         "cx": half,
         "cy": half,
         "half": half,
-        "outer_half": outer_half,
         "inner_half": inner_half,
         "inner_corner": inner_half * 0.28,
         "mode": {
@@ -121,20 +118,20 @@ def _radius_to_rounded_square(ux: float, uy: float, half: float, corner: float) 
 
 
 def _outer_radius_at(a: float, L: dict) -> float:
-    """Ray to inset square (30% smaller sides/top); longer toward corners."""
+    """Ray to display edges L/T/R (+ button-top) — flush outer, longer at corners."""
     dx = math.cos(a)
     dy = -math.sin(a)
-    oh = L["outer_half"]
+    w = L["size"]
     cx, cy = L["cx"], L["cy"]
     r_max = float("inf")
     if dx > 1e-9:
-        r_max = min(r_max, oh / dx)
+        r_max = min(r_max, (w - cx) / dx)
     if dx < -1e-9:
-        r_max = min(r_max, oh / -dx)
+        r_max = min(r_max, (0.0 - cx) / dx)
     if dy > 1e-9:
-        r_max = min(r_max, min(oh, L["btn_y"] - cy) / dy)
+        r_max = min(r_max, (L["btn_y"] - cy) / dy)
     if dy < -1e-9:
-        r_max = min(r_max, oh / -dy)
+        r_max = min(r_max, (0.0 - cy) / dy)
     return max(L["inner_half"] + 4.0, r_max - 0.5)
 
 

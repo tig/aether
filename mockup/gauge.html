@@ -62,8 +62,8 @@
 <body>
   <h1>AETHER · SQUARE AFR FACE</h1>
   <p class="sub">
-    Square panel; rounded-square inner; outer fills to the edges; stoich (~14.7)
-    always tick-lit. Fat <strong>MODE</strong> / <strong>SEL</strong>.
+    Segments flush to display edges; thinner band / larger center for big AFR;
+    stoich tick; <strong>AIR/FUEL RATIO</strong> above MODE/SEL.
   </p>
   <div class="device" id="device">
     <canvas id="gauge" width="368" height="368" aria-label="Air fuel ratio gauge, square face"></canvas>
@@ -164,10 +164,11 @@
     let flashUntil = 0;
     let lastState = mapAfr(AFR_STOICH);
 
-    // Ring envelope: sides/top 30% smaller than full face half → more open center.
-    const OUTER_SCALE = 0.70;
-    // Larger rounded-square hole so AFR digits can grow.
-    const INNER_SCALE = 0.62;
+    // Outer segments flush to display L/T/R. Band ~30% thinner than the early
+    // full-flush ring (inner grew) so the AFR digits have more room inside.
+    // Prior ring: outer=half, inner≈0.58*half → thickness 0.42*half.
+    // Now: thickness ≈ 0.42*0.70*half → inner ≈ 0.706*half.
+    const INNER_SCALE = 0.706;
 
     function layout(w, h) {
       const stripH = Math.round(h * BTN_STRIP_FRAC);
@@ -177,13 +178,11 @@
       const half = w / 2;
       const cx = w / 2;
       const cy = half;
-      const outerHalf = half * OUTER_SCALE;
       const innerHalf = half * INNER_SCALE;
       const innerCorner = innerHalf * 0.28;
       return {
         w, h, stripH, btnY, half,
         cx, cy,
-        outerHalf,
         innerHalf,
         innerCorner,
         mode: { x: 0, y: btnY, w: btnW, h: btnH, id: "mode" },
@@ -227,17 +226,15 @@
       return half;
     }
 
-    /** Outer: sharp square, 30% inset from full face (sides/top smaller). */
+    /** Outer: flush to display edges L/T/R (and button-top). Longer at corners. */
     function outerRadiusAt(a, L) {
       const dx = Math.cos(a);
       const dy = -Math.sin(a);
-      const oh = L.outerHalf;
-      // Virtual square [cx±oh] × [cy±oh], also stay above buttons.
       let rMax = Infinity;
-      if (dx > 1e-9) rMax = Math.min(rMax, oh / dx);
-      if (dx < -1e-9) rMax = Math.min(rMax, oh / -dx);
-      if (dy > 1e-9) rMax = Math.min(rMax, Math.min(oh, L.btnY - L.cy) / dy);
-      if (dy < -1e-9) rMax = Math.min(rMax, oh / -dy);
+      if (dx > 1e-9) rMax = Math.min(rMax, (L.w - L.cx) / dx);
+      if (dx < -1e-9) rMax = Math.min(rMax, (0 - L.cx) / dx);
+      if (dy > 1e-9) rMax = Math.min(rMax, (L.btnY - L.cy) / dy);
+      if (dy < -1e-9) rMax = Math.min(rMax, (0 - L.cy) / dy);
       return Math.max(L.innerHalf + 4, rMax - 0.5);
     }
 
