@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Aether — AFR Gauge Mockup (simulated)</title>
+  <style>
+    :root { color-scheme: dark; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: #0a0a0a;
+      color: #ccc;
+      font-family: "Segoe UI", system-ui, sans-serif;
+    }
+    h1 { font-size: 0.95rem; font-weight: 500; letter-spacing: 0.08em; color: #888; margin: 0 0 0.5rem; }
+    .sub { font-size: 0.75rem; color: #555; margin-bottom: 1rem; text-align: center; max-width: 28rem; }
+    canvas {
+      border-radius: 50%;
+      box-shadow: 0 0 40px rgba(0,0,0,0.8), inset 0 0 0 1px #222;
+      background: #050505;
+    }
+    .meta {
+      margin-top: 1rem;
+      font-family: ui-monospace, Consolas, monospace;
+      font-size: 0.8rem;
+      color: #666;
+    }
+    .badge {
+      display: inline-block;
+      margin-top: 0.75rem;
+      padding: 0.2rem 0.6rem;
+      border: 1px solid #333;
+      border-radius: 999px;
+      font-size: 0.7rem;
+      color: #888;
+    }
+  </style>
+</head>
+<body>
+  <h1>AETHER · AFR GAUGE MOCKUP</h1>
+  <p class="sub">
+    Simulated air–fuel ratio only (not live OBD/CAN). Spec-learning face for the
+    ESP32-S3 1.8″ AMOLED GCU — scale 8–20, arc LEDs, center readout.
+  </p>
+  <canvas id="gauge" width="480" height="480" aria-label="Air fuel ratio gauge"></canvas>
+  <div class="meta" id="meta">—</div>
+  <div class="badge">host mockup · python -m mockup for stream dump</div>
+
+  <script>
+    // Visual twin of mockup/afr_gauge.py mapping (Python is canonical / unit-tested).
+    const AFR_MIN = 8.0;
+    const AFR_MAX = 20.0;
+    const AFR_STOICH = 14.7;
+    const SEGMENT_COUNT = 36;
+    const BAND_RICH_RED_LT = 11.5;
+    const BAND_GREEN_LT = 15.0; // includes stoich ~14.7
+    const BAND_AMBER_LT = 15.8;
+
+    function clampAfr(afr) {
+      return Math.min(AFR_MAX, Math.max(AFR_MIN, afr));
+    }
+    function isInRange(afr) {
+      return afr >= AFR_MIN && afr <= AFR_MAX;
+    }
+    function bandForAfr(afr) {
+      if (!isInRange(afr)) return "invalid";
+      if (afr < BAND_RICH_RED_LT) return "red";
+      if (afr < BAND_GREEN_LT) return "green";
+      if (afr < BAND_AMBER_LT) return "amber";
+      return "red";
+    }
+    function segmentMidpointAfr(i, n = SEGMENT_COUNT) {
+      const span = AFR_MAX - AFR_MIN;
+      return AFR_MIN + (i + 0.5) * span / n;
+    }
+    function segmentBand(i) {
+      const b = bandForAfr(segmentMidpointAfr(i));
+      return b === "invalid" ? "red" : b;
+    }
+    function litCountForAfr(afr, n = SEGMENT_COUNT) {
+      const display = clampAfr(afr);
+      const span = AFR_MAX - AFR_MIN;
+      let count = Math.floor(((display - AFR_MIN) / span) * n + 1e-9) + 1;
+      return Math.min(n, Math.max(1, count));
+    }
+    function mapAfr(afr) {
+      const valid = isInRange(afr);
+      const display = clampAfr(afr);
+      const band = valid ? bandForAfr(afr) : "invalid";
+      const litCount = litCountForAfr(display);
+      const litIndices = [...Array(litCount).keys()];
+      const segmentBands = [...Array(SEGMENT_COUNT).keys()].map(segmentBand);
+      return { afr, display, valid, band, litCount, litIndices, segmentBands };
+    }
+
+    // Simulated stream (noise around stoich + occasional excursions)
+    let holdTarget = null;
+    let holdRemaining = 0;
+    function nextSimAfr() {
+      if (holdRemaining > 0) {
+        holdRemaining--;
+        return holdTarget + (Math.random() - 0.5) * 0.3;
+      }
+      if (Math.random() < 0.06) {
+        holdTarget = Math.random() < 0.5 ? 11.0 : 17.5;
+        holdRemaining = 4 + Math.floor(Math.random() * 6);
+        return holdTarget;
+      }
+      return AFR_STOICH + (Math.random() - 0.5) * 0.7;
+    }
+
+    const COLORS = {
+      green: "#22c55e",
+      amber: "#f59e0b",
+      red: "#ef4444",
+      invalid: "#444",
+      dim: "#1a1a1a",
+    };
+
+    function drawGauge(ctx, state) {
+      const w = ctx.canvas.width;
+      const h = ctx.canvas.height;
+      const cx = w / 2;
+      const cy = h / 2;
+      const outerR = Math.min(w, h) * 0.42;
+      const innerR = outerR * 0.78;
+
+      ctx.clearRect(0, 0, w, h);
+
+      // Bezel
+      ctx.beginPath();
+      ctx.arc(cx, cy, outerR + 22, 0, Math.PI * 2);
+      ctx.fillStyle = "#151515";
+      ctx.fill();
+      ctx.lineWidth = 10;
+      ctx.strokeStyle = "#2a2a2a";
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.arc(cx, cy, outerR + 6, 0, Math.PI * 2);
+      ctx.fillStyle = "#0a0a0a";
+      ctx.fill();
+
+      const startDeg = 225;
+      const sweepDeg = 270;
+      const n = SEGMENT_COUNT;
+      const litSet = new Set(state.litIndices);
+
+      for (let i = 0; i < n; i++) {
+        const a0 = (startDeg - (i / n) * sweepDeg) * Math.PI / 180;
+        const a1 = (startDeg - ((i + 1) / n) * sweepDeg) * Math.PI / 180;
+        const gap = 0.014;
+        const aa0 = a0 - gap;
+        const aa1 = a1 + gap;
+        // Canvas angles: 0 east, CCW; we use cos/sin with y-up flipped via -sin in SVG; here use standard.
+        // Match Python SVG: x = cx + r*cos(a), y = cy - r*sin(a) with a from startDeg.
+        function pt(r, a) {
+          return [cx + r * Math.cos(a), cy - r * Math.sin(a)];
+        }
+        ctx.beginPath();
+        const [x0o, y0o] = pt(outerR, aa0);
+        ctx.moveTo(x0o, y0o);
+        // Arc along outer — need canvas arc which is CW/CCW differently.
+        // Approximate with line segments for segment wedge.
+        const steps = 6;
+        for (let s = 1; s <= steps; s++) {
+          const t = s / steps;
+          const a = aa0 + (aa1 - aa0) * t;
+          const [x, y] = pt(outerR, a);
+          ctx.lineTo(x, y);
+        }
+        for (let s = steps; s >= 0; s--) {
+          const t = s / steps;
+          const a = aa0 + (aa1 - aa0) * t;
+          const [x, y] = pt(innerR, a);
+          ctx.lineTo(x, y);
+        }
+        ctx.closePath();
+        const band = state.segmentBands[i];
+        ctx.fillStyle = litSet.has(i) ? (COLORS[band] || COLORS.dim) : COLORS.dim;
+        ctx.fill();
+      }
+
+      // Tick labels
+      ctx.fillStyle = "#888";
+      ctx.font = "14px Segoe UI, sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      for (const mark of [8, 11, 13, 15, 17, 20]) {
+        const t = (mark - AFR_MIN) / (AFR_MAX - AFR_MIN);
+        const a = (startDeg - t * sweepDeg) * Math.PI / 180;
+        const r = innerR - 20;
+        const x = cx + r * Math.cos(a);
+        const y = cy - r * Math.sin(a);
+        ctx.fillText(String(mark), x, y);
+      }
+
+      // Center readout (7-segment-ish red)
+      const readout = state.valid ? state.display.toFixed(1) : "--.-";
+      ctx.fillStyle = "#ff2222";
+      ctx.font = "bold 78px Consolas, ui-monospace, monospace";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.shadowColor = "rgba(255,40,40,0.45)";
+      ctx.shadowBlur = 12;
+      ctx.fillText(readout, cx, cy + 6);
+      ctx.shadowBlur = 0;
+
+      ctx.fillStyle = "#cccccc";
+      ctx.font = "600 15px Segoe UI, sans-serif";
+      ctx.letterSpacing = "0.12em";
+      ctx.fillText("AIR/FUEL RATIO", cx, cy + 72);
+
+      // MODE / SEL chrome stubs (non-functional)
+      ctx.fillStyle = "#222";
+      ctx.beginPath();
+      ctx.arc(cx - 48, cy + outerR - 8, 10, 0, Math.PI * 2);
+      ctx.arc(cx + 48, cy + outerR - 8, 10, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#555";
+      ctx.font = "10px Segoe UI, sans-serif";
+      ctx.fillText("MODE", cx - 48, cy + outerR - 28);
+      ctx.fillText("SEL", cx + 48, cy + outerR - 28);
+    }
+
+    const canvas = document.getElementById("gauge");
+    const ctx = canvas.getContext("2d");
+    const meta = document.getElementById("meta");
+
+    function tick() {
+      const afr = nextSimAfr();
+      const state = mapAfr(afr);
+      drawGauge(ctx, state);
+      meta.textContent =
+        `AFR ${state.display.toFixed(2)}  band=${state.band}  lit=${state.litCount}/${SEGMENT_COUNT}` +
+        (state.valid ? "" : "  INVALID");
+      requestAnimationFrame(() => setTimeout(tick, 180));
+    }
+    tick();
+  </script>
+</body>
+</html>
