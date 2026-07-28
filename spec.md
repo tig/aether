@@ -21,7 +21,7 @@ On the workbench and in the vehicle, Aether should eventually:
 | Fact | Value |
 |------|--------|
 | MCU | ESP32-S3R8 |
-| Display | 1.8″ AMOLED touch; treat **product face as square** (layout for equal width/height; crop/letterbox if panel is slightly taller) |
+| Display | 1.8″ AMOLED touch, native **368×448**; product UI runs **landscape 448×368** with hard buttons on the top edge |
 | Panel | SH8601 (QSPI) |
 | Touch | FT3168 (I2C) |
 | Link | USB Type-C (CDC) |
@@ -39,10 +39,12 @@ Reference visual: commercial 52 mm digital wideband (arc LEDs + 7-segment-style 
 | Color bands | **Green** near stoich / slightly rich-good; **amber** transition; **red** at rich and lean extremes |
 | Center | Large **one-decimal** numeric AFR |
 | Label | **AIR/FUEL RATIO** |
-| Panel | **368×448** (ESP32-S3-Touch-AMOLED-1.8 class) — mockup canvas matches device pixels |
-| Face shape | LED outer **flush L/T/R**; **rounded-square** inner (~78% of half-width — band ~25% thinner again); large AFR readout |
+| Panel | Native **368×448**; product UI is **landscape 448×368** with USB + hard buttons on the **top** edge |
+| Hard buttons | Physical keys beside USB (PWR/BOOT-class) map to **MODE** / **SEL** — on-screen **labels only**, not touch targets |
+| Face shape | Gauge shifted down under top chrome; LED outer flush L/R of landscape face; rounded-square inner; large AFR readout |
 | Caption | **AIR/FUEL RATIO** under the numeric value |
-| Logging | **Text-free** status in the rail above MODE/SEL: pulsing **red LED** = logging on; dim ring = off (SEL toggles) |
+| Logging | Pulsing **red LED centered at top between MODE and SEL** (text-free) |
+| Swipe | **Page dots** at bottom (iOS-style) — swipe left/right between faces |
 | Stoich mark | Segment at **~14.7** stays slightly highlighted even when not fill-lit |
 | Scale labels | Readable ticks: **8 · 11 · 13 · 15 · 17 · 20** |
 | MODE / SEL | Large bottom bar (~18% height), two equal hit targets flush L/R/B; labels **MODE** / **SEL** only (no LIVE/TAP subtext) |
