@@ -113,13 +113,16 @@
     const TOP_CHROME = BANNER_H;
     const AUX_FRAC = 0.30; // bottom free zone for RPM / TPS (not including swipe)
     const SWIPE_DOTS_Y_FROM_BOTTOM = 12;
-    const BAND_FRAC = 0.14 * 1.1;
+    // Dial segment band +50% (wider sides / taller top).
+    const BAND_FRAC = 0.14 * 1.1 * 1.5;
     const PAGE_COUNT = 3;
-    // Value +20%; dial legend + value legend restored larger; aux numbers +20%.
     const AFR_DIGIT_OF_HALF = 0.58 * 1.5 * 1.1 * 1.2 * 1.2 * 1.2 * 1.2;
-    const TICK_OF_HALF = 0.16 * 1.5 * 1.35;       // dial legend (was too small)
-    const CAPTION_OF_HALF = 0.12 * 1.5 * 1.35;    // value legend (was too small)
-    const HARD_LABEL_OF_CHROME = 0.42;            // banner = absolute min face text size
+    const TICK_OF_HALF = 0.16 * 1.5 * 1.35;
+    const CAPTION_OF_HALF = 0.12 * 1.5 * 1.35;
+    const HARD_LABEL_OF_CHROME = 0.42; // banner labels = min for label text
+    // Value floors at 448×368 — must not regress smaller.
+    const PRIMARY_VALUE_MIN_PX = 82;   // AFR value
+    const SECONDARY_VALUE_MIN_PX = 48; // RPM / TPS numbers
     const BANNER_BG = "#1a2433";
     const BANNER_EDGE = "#2a3a52";
 
@@ -442,9 +445,12 @@
 
       const readout = state.valid ? state.display.toFixed(1) : "--.-";
       // Value up ~5%; tight value legend; block sits so legend bottom ≈ dial bottom.
-      const digitPx = Math.min(
-        Math.round(half * AFR_DIGIT_OF_HALF),
-        Math.round(Math.min(L.innerHalfW, L.innerHalfH) * 0.95)
+      const digitPx = Math.max(
+        PRIMARY_VALUE_MIN_PX,
+        Math.min(
+          Math.round(half * AFR_DIGIT_OF_HALF),
+          Math.round(Math.min(L.innerHalfW, L.innerHalfH) * 0.98)
+        )
       );
       const captionPx = Math.max(minTextPx, Math.round(half * CAPTION_OF_HALF));
       const valueGap = Math.max(2, Math.round(digitPx * 0.08)); // tight under value
@@ -479,7 +485,11 @@
       // Banner label size is the floor for any face text (product legibility rule).
       const minTextPx = Math.max(16, Math.round(TOP_CHROME * HARD_LABEL_OF_CHROME));
       const legPx = minTextPx;
-      const numPx = Math.max(minTextPx, Math.round(L.auxH * 0.36 * 1.2)); // +20%
+      const numPx = Math.max(
+        SECONDARY_VALUE_MIN_PX,
+        minTextPx,
+        Math.round(L.auxH * 0.36 * 1.2)
+      );
       // Legends flush against bottom (above a tiny pad for swipe dots).
       const legBaseline = L.h - 4;
       const midY = L.auxTop + (legBaseline - legPx - L.auxTop) * 0.48;

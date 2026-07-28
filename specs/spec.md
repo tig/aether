@@ -114,14 +114,22 @@ A raw AFR number is **low-value**. High-value systems turn continuous oxygen mea
 
 **Screen layout detail** for the main AFR page: [afr-face.md](afr-face.md).
 
-### 3.3.1 Legibility floor (hard rule on this device)
+### 3.3.1 Legibility floors (hard rules on this device)
 
 This is a **~1.8″** face. Text that looks fine when zoomed on a desktop can be unusable in the car.
 
-- The font size used for **banner button labels** (MODE / SEL) is the **absolute minimum** allowed for **any** text or numeric label on the device face.
+**Label floor**
+
+- The font size used for **banner button labels** (MODE / SEL) is the **absolute minimum** allowed for **any** caption/label text on the device face (value legend, dial legend, RPM/TPS captions, etc.).
 - If a string cannot fit at that size without clipping, overlapping, or abbreviating into gibberish, **it does not belong on the face** — redesign the layout or drop the label. Do not “solve” it by shrinking type below the banner size.
-- Numbers that matter while driving (AFR **value**, **RPM**, **TPS**/WOT) must be **clearly larger** than that floor.
+
+**Value floors (do not regress)**
+
+- **Primary value** (the dominant live number on a screen — on the AFR screen, the AFR **value**) must **never be smaller** than the current shipping primary size. Reference at 448×368: **≥ 82 device pixels** high (mockup-tuned). Later screens with a different primary number (e.g. a dedicated RPM page) must keep their primary at least this large unless the product explicitly re-baselines.
+- **Secondary values** (supporting live numbers on the same face — on the AFR screen, **RPM** and **TPS**/WOT) must **never be smaller** than the current shipping secondary size. Reference at 448×368: **≥ 48 device pixels** high.
+- Primary must remain **clearly larger** than secondary; both must remain **clearly larger** than the label floor.
 - Always judge legibility at **physical size** (mockup ~1.8″ diagonal), not only at full-screen browser zoom.
+- Shrinking primary/secondary to “make room” for more chrome is a **spec violation**, not a fix.
 
 ### 3.4 Temporal features (response, history, statistics)
 

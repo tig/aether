@@ -36,12 +36,16 @@ BANNER_EDGE = "#2a3a52"
 # Bottom ~30% of face for RPM / TPS aux readouts; dial ends above that.
 AUX_FRAC = 0.30
 SWIPE_DOTS_Y_FROM_BOTTOM = 12
-BAND_FRAC = 0.14 * 1.1
+# Dial segment band +50% (wider sides / taller top).
+BAND_FRAC = 0.14 * 1.1 * 1.5
 PAGE_COUNT = 3
-AFR_DIGIT_OF_HALF = 0.58 * 1.5 * 1.1 * 1.2 * 1.2 * 1.2 * 1.2  # value +20%
-TICK_OF_HALF = 0.16 * 1.5 * 1.35  # dial legend restored larger
-CAPTION_OF_HALF = 0.12 * 1.5 * 1.35  # value legend restored larger
-HARD_LABEL_OF_CHROME = 0.42  # banner size = absolute min face text
+AFR_DIGIT_OF_HALF = 0.58 * 1.5 * 1.1 * 1.2 * 1.2 * 1.2 * 1.2
+TICK_OF_HALF = 0.16 * 1.5 * 1.35
+CAPTION_OF_HALF = 0.12 * 1.5 * 1.35
+HARD_LABEL_OF_CHROME = 0.42  # banner size = absolute min face *label* text
+# Value floors (device px at 448×368): must not regress smaller than these.
+PRIMARY_VALUE_MIN_PX = 82   # AFR value
+SECONDARY_VALUE_MIN_PX = 48  # RPM / TPS numbers
 
 
 def _stoich_segment_index(n: int = SEGMENT_COUNT) -> int:
@@ -279,10 +283,13 @@ def render_gauge_svg(
                 f'text-anchor="middle" dominant-baseline="middle">{label}</text>'
             )
 
-        # Value (+20%); tight value legend; bottoms near dial content_bot.
-        digit_px = min(
-            round(half * AFR_DIGIT_OF_HALF),
-            round(min(L["inner_half_w"], L["inner_half_h"]) * 0.98),
+        # Primary value: never smaller than PRIMARY_VALUE_MIN_PX.
+        digit_px = max(
+            PRIMARY_VALUE_MIN_PX,
+            min(
+                round(half * AFR_DIGIT_OF_HALF),
+                round(min(L["inner_half_w"], L["inner_half_h"]) * 0.98),
+            ),
         )
         caption_px = max(min_text_px, round(half * CAPTION_OF_HALF))
         value_gap = max(2, round(digit_px * 0.08))
@@ -309,7 +316,12 @@ def render_gauge_svg(
         left_x = w * 0.28
         right_x = w * 0.72
         leg_px = min_text_px
-        num_px = max(min_text_px, round(L["aux_h"] * 0.36 * 1.2))
+        # Secondary values: never smaller than SECONDARY_VALUE_MIN_PX.
+        num_px = max(
+            SECONDARY_VALUE_MIN_PX,
+            min_text_px,
+            round(L["aux_h"] * 0.36 * 1.2),
+        )
         leg_baseline = h - 4
         mid_y = L["aux_top"] + (leg_baseline - leg_px - L["aux_top"]) * 0.48
         parts.append(

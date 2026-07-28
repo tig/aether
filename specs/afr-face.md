@@ -194,16 +194,20 @@ This screen is **tiny** (≈1.8″). Type must stay **legible at physical size**
 | **TPS** | Right of aux zone; number or **WOT** with **TPS** caption **flush to the bottom** of the face |
 | **Swipe indicator** | Bottom center overlay (must not force RPM/TPS captions smaller than the floor) |
 
-### 6.3 Size intent and legibility floor
+### 6.3 Size intent and legibility floors
 
-**Product rule ([spec.md](spec.md) §3.3.1):** the font size of the **banner button labels** is the **absolute minimum** for any text or numeric label on this face. Nothing may be smaller. If a string cannot fit at that size, redesign the layout — do not shrink type.
+**Product rules ([spec.md](spec.md) §3.3.1):**
 
-- **Value:** as large as the dial aperture allows (well above the floor); dominant.
-- **Value legend:** at least the floor size; tight under the value (must not regress to tiny footnotes).
-- **Dial legend:** at least the floor size; inside aperture (must not regress to tiny ticks).
-- **RPM / TPS numbers:** clearly larger than the floor; secondary only to the AFR value.
-- **RPM / TPS captions:** at least the floor size; flush to the bottom edge under the numbers.
+1. **Label floor** — banner button-label size is the minimum for any caption/label on this face.
+2. **Primary value floor** — AFR **value** must never go below the current shipping primary size (**≥ 82 px** at 448×368).
+3. **Secondary value floor** — **RPM** and **TPS**/WOT numbers must never go below the current shipping secondary size (**≥ 48 px** at 448×368).
+4. Primary &gt; secondary &gt; label floor. Do not shrink values to fit more chrome.
+
+- **Value:** as large as practical above the primary floor; dominant.
+- **Value legend / dial legend / RPM·TPS captions:** at least the label floor; value legend tight under the value; dial legend inside the aperture; RPM/TPS captions flush to the bottom.
 - Judge at **physical ~1.8″** size, not only when zoomed.
+
+**Dial band:** LED segment thickness is constant on mid-sides and mid-top; keep segments substantial (mockup uses ~15% of the shorter outer half-span after the +50% band increase — prefer matching the mockup over thinning the ring to grow type).
 
 ### 6.4 TPS display on this screen
 
