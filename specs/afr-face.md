@@ -1,7 +1,7 @@
 # Aether AFR product face — reimplementation spec
 
-**Rev 0.2 · July 2026**  
-**Status:** Host mockup is the source of truth for this face. Implement on metal later; do not invent a second layout.
+**Rev 0.3 · July 2026**  
+**Status:** Host mockup is the working reference for this face. Implement on metal later; do not invent a second layout. Typography is **intent-first** (§6); geometry that must stay consistent is in §4–5.
 
 This document is written so an agent with no prior session can rebuild the face.  
 Phrase book: [lexicon.md](lexicon.md). Product seed: [../spec.md](../spec.md).  
@@ -212,33 +212,43 @@ lit_indices = 0 .. lit_count-1
 
 ---
 
-## 6. Typography and placement (device px)
+## 6. Typography and placement
 
-Let `half = min(inner_half_w, inner_half_h)`.
+This face is **tiny** (≈1.8″). Type must stay **legible at physical size**, not just on a zoomed desktop window. Prefer clear hierarchy over exact pixel formulas; the mockup in `mockup/` is a tuned reference, not a second contract of magic ratios.
 
-| Element | Size rule | Color | Placement |
-|---------|-----------|--------|-----------|
-| **Button labels** | `0.42 * BANNER_H` (min ~16) | `#e8eef8` | Banner: MODE left (~x=22), SEL right (~x=W−22), vertically centered in banner |
-| **Status LED** | radius ~9 | See §7 | Banner center |
-| **Dial legend** | `0.24 * half` (min ~14) | `#d0d0d8` | **Inside** aperture: `r = inner_r(a) − ~0.85*label_px` (not on LED band) |
-| **Value** | `min(1.148*half, 0.95*half_aperture)` ≈ large red | `#ff2a2a` | See block layout below |
-| **Value legend** | `0.18 * half` (min ~12) | `#c0c0c8` | Under value |
+### 6.1 Hierarchy (what must read first)
 
-### 6.1 Value + value legend block
+1. **Value** — dominant element of the face. Largest type. Red, bold, monospace-style digits. One decimal. At physical size, a driver should read it in a glance.
+2. **Value legend** — secondary, clearly under the value, smaller than the value but still readable (`AIR/FUEL RATIO`).
+3. **Dial legend** — tertiary scale marks (8 / 11 / 13 / 15 / 17 / 20). Smaller than the value; must not fight the value for attention.
+4. **Button labels** — readable names for physical keys; live in the banner, not on the dial.
 
-Treat value + gap + value legend as one vertical block:
+### 6.2 Placement intent
 
-```
-value_gap ≈ 0.18 * digit_px
-block_h = digit_px + value_gap + caption_px
-center_nudge = 0.18 * min(inner_half_h, half)   # push block downward in aperture
-digit_y = cy - block_h/2 + digit_px/2 + center_nudge
-caption_y = digit_y + digit_px/2 + value_gap
-```
+| Element | Where | Requirements |
+|---------|--------|----------------|
+| **Button labels** | **Banner**: MODE left, SEL right, vertically centered in the banner strip | Clear left/right pairing with the hard buttons above those ends of the panel. Light ink on the banner so they stay legible. |
+| **Status LED** | Banner center, between the button labels | Small round indicator only — no “LOG” text on the face. See §7. |
+| **Dial legend** | **Inside the dial aperture**, just inboard of the LED ring (not drawn on top of segments) | Sit on the same angular positions as the scale (AFR-proportional along the arc). Marks at **8, 11, 13, 15, 17, 20**. Corner marks **8** and **20** near the bottom-left and bottom-right starts of the dial. Must remain readable without covering the value. |
+| **Value** | Center of the aperture, with the value legend as one vertical group | The **value + value legend** block should feel **centered in the open aperture**, with a slight bias **downward** so it does not crowd the upper dial legend (13 / 15). Leave breathing room to the ring and to the swipe indicator. |
+| **Value legend** | Directly under the value, same horizontal center | Visually attached to the value (tight stack), not floating near the bottom of the face. |
+| **Swipe indicator** | Bottom center of the face | Overlaid on the dial; small page dots; must not require a reserved empty strip that shrinks the dial. |
 
-Font: bold monospace for **value**; semibold sans for legends/labels.
+### 6.3 Size intent (not magic ratios)
 
-Dial legend marks: **8, 11, 13, 15, 17, 20** at AFR-proportional angles along the same arc as segments.
+- **Value:** as large as the aperture allows while still fitting `20.0` (or `--.-`) **and** the value legend underneath without collision or clipping into the dial segments.
+- **Value legend:** clearly smaller than the value; still legible at 1.8″; same family as other UI sans labels.
+- **Dial legend:** large enough to read on the device; small enough that the set of marks does not fill the aperture or collide with the value block.
+- **Button labels:** large enough to read in the banner at a glance; they are the only text that explains the hard keys.
+- Prefer **bold / heavy weight** for the value; medium–semibold for legends and button labels.
+- Colors: value **strong red**; dial legend and value legend **light gray** on black; button labels **light** on the banner.
+
+If a rebuild looks wrong, fix hierarchy and collisions first — do not invent a new face by stacking more ad-hoc scale factors in the spec.
+
+### 6.4 Fonts
+
+- **Value:** bold monospace (or monospaced digit face) so `1` / `7` / `.` stay stable as numbers change.
+- **Everything else:** clean sans-serif UI face.
 
 ---
 
@@ -246,23 +256,23 @@ Dial legend marks: **8, 11, 13, 15, 17, 20** at AFR-proportional angles along th
 
 ### 7.1 Banner chrome
 
-| Property | Value |
-|----------|--------|
-| Height | 60 px |
-| Background | `#1a2433` (visually distinct from dial black `#050508`) |
-| Bottom edge | 1 px line `#2a3a52` |
-| Label ink | `#e8eef8` (must stay legible on banner) |
+- A **horizontal strip across the top of the face**, tall enough for comfortable button labels and the logging LED (on the order of a sixth of face height — mockup uses 60 px at 368 tall).
+- **Visually distinct** from the dial: darker blue-slate field, not the same pure black as the dial face.
+- A subtle bottom edge (hairline) can separate banner from dial.
+- Button label ink must stay **high-contrast** on that field (light on dark).
+
+Exact hex in the mockup is a reference; the requirement is **distinct banner + legible labels**, not a brand palette freeze.
 
 ### 7.2 Logging LED (status indicator)
 
 | State | Look |
 |-------|------|
-| **On** | Bright red `#ff3232`, soft glow/pulse |
-| **Off** | **Dim red** still (not gray): fill `#5a1818`, soft dark red halo — readable as “red LED off” |
+| **On** | Bright red, optional soft pulse/glow — “recording / logging active” |
+| **Off** | **Still red**, but dim (not gray or off-black) — “LED present but inactive” |
 
-Centered in banner between button labels. **No text** next to the LED on the device face.
+Centered in the banner between the button labels. **No accompanying text** on the device face.
 
-Host prototype demo: start **off**, turn **on** after ~2 s of sim loop (optional).
+Host prototype demo: start **off**, turn **on** after a short simulated delay (optional).
 
 ---
 
@@ -323,8 +333,9 @@ SVG twin: `python -m mockup` → `mockup/out/afr_gauge.svg`.
 - [ ] 35 segments; 8 and 20 at bottom corners  
 - [ ] Mid-side band thickness equals mid-top band thickness  
 - [ ] Unlit segments visible; stoich soft-highlight when not lit  
-- [ ] Dial legend inside aperture; value large; value legend under value  
-- [ ] Value + value legend sit low/centered in aperture (not stuck under top legend)  
+- [ ] Dial legend inside aperture; value dominates; value legend under value  
+- [ ] Value + value legend read as one centered (slightly low) block in the aperture  
+- [ ] Type hierarchy holds at ~1.8″ physical size (not only when zoomed)  
 - [ ] Logging LED bright vs dim red  
 - [ ] Swipe dots overlaid at bottom  
 - [ ] Unit tests pass for pure AFR→segment mapping  
