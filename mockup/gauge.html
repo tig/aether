@@ -221,7 +221,7 @@
       const band = Math.min(outerHalfW, outerHalfH) * BAND_FRAC;
       const innerHalfW = Math.max(8, outerHalfW - band);
       const innerHalfH = Math.max(8, outerHalfH - band);
-      const innerCorner = Math.min(innerHalfW, innerHalfH) * 0.22;
+      const innerCorner = Math.min(innerHalfW, innerHalfH) * 0.22 * 1.15; // +15%
       // Ref half for type (shorter aperture axis).
       const half = Math.min(innerHalfW, innerHalfH);
       return {

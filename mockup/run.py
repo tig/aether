@@ -76,7 +76,7 @@ def _layout(w: int = FACE_W, h: int = FACE_H) -> dict:
     band = min(outer_half_w, outer_half_h) * BAND_FRAC
     inner_half_w = max(8.0, outer_half_w - band)
     inner_half_h = max(8.0, outer_half_h - band)
-    inner_corner = min(inner_half_w, inner_half_h) * 0.22
+    inner_corner = min(inner_half_w, inner_half_h) * 0.22 * 1.15  # +15%
     half = min(inner_half_w, inner_half_h)
     return {
         "w": w,
