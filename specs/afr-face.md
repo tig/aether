@@ -16,7 +16,7 @@ Reference implementation: `mockup/` (Python mapper + SVG + HTML canvas).
 
 A landscape **wideband-style AFR page** on the Aether AMOLED:
 
-- Operator reads the AFR **value** at a glance.
+- Operator reads the AFR **value** at a glance, with **lambda** to its right.
 - **Dial** segments show mixture band (green / amber / red); **dial legend** marks 8–20.
 - **Banner** names physical **MODE** / **SEL** and shows **logging** via a LED **status indicator**.
 - **Aux readouts** show live **RPM** and **TPS** under the dial (context on the same page).
@@ -56,7 +56,7 @@ Use these names; full list in [lexicon.md](lexicon.md).
 | **button labels** | MODE (left), SEL (right) |
 | **dial legend** | 8 · 11 · 13 · 15 · 17 · 20 inside the aperture |
 | **value** | Large AFR numeric |
-| **value legend** | `AIR/FUEL RATIO` tight under the value |
+| **lambda** | λ to the right of the value (~75% of value size) |
 | **aux readouts** | RPM (left) and TPS (right) below the dial |
 | **swipe indicator** | Page dots at the bottom |
 | **status indicators** | Logging LED (and future LEDs) in the banner |
@@ -70,9 +70,8 @@ Y=0  ┌────────────────────────
      │  MODE          ● (log LED)           SEL   │  ← banner
      ├────────────────────────────────────────────┤
      │ ████████  dial (full width)          █████ │
-     │ ██   dial legend   value              ██  │
-     │ ██               value legend         ██  │
-     │ ██  8 (corner)              20 (corner)██  │  ← dial bottom ≈ value legend bottom
+     │ ██   dial legend   value  λ           ██  │
+     │ ██  8 (corner)              20 (corner)██  │
      ├────────────────────────────────────────────┤
      │     RPM 1234              42% / WOT        │  ← ~30% of face: aux readouts
      │      RPM                    TPS            │
@@ -85,7 +84,7 @@ Y=H  └────────────────────────
 | Region | Intent |
 |--------|--------|
 | **Banner** | Top strip (~60 px at this resolution): MODE · log LED · SEL on a **distinct** background from the dial |
-| **Dial** | Full width; height is everything under the banner **except** the bottom ~**30%** of the face. Start/end of the dial (8 and 20) sit at the **bottom of the dial region**, aligned with the bottom of the **value legend**. |
+| **Dial** | Full width; height is everything under the banner **except** the bottom ~**30%** of the face. Start/end of the dial (8 and 20) sit at the **bottom of the dial region**. |
 | **Aux readouts** | Bottom ~**30%** of face height: **RPM** left, **TPS** right, each with a small legend under the number |
 | **Swipe indicator** | Overlay near the face bottom; does not add an extra dead strip that shrinks the dial |
 
@@ -188,8 +187,8 @@ This screen is **tiny** (≈1.8″). Type must stay **legible at physical size**
 | **Button labels** | Banner: MODE left, SEL right, vertically centered; light ink on banner |
 | **Status LED** | Banner center; no “LOG” text on the face |
 | **Dial legend** | **Inside** the aperture (not on LED segments); 8 and 20 at bottom corners of the dial |
-| **Value** | Large; in the dial aperture; slightly **up** from a pure bottom-hug so it does not crush the corners |
-| **Value legend** | Directly under the value with a **tight** gap; bottom of this stack ≈ **bottom of the dial** |
+| **Value** | Large AFR in the dial aperture (dominant). Color matches current band. |
+| **Lambda** | Immediately to the **right** of the value, ~**75%** of value font size, same color; two decimals (AFR ÷ 14.7 gasoline stoich for display). No `AIR/FUEL RATIO` under-text. |
 | **RPM** | Left of aux zone; number with **RPM** caption **flush to the bottom** of the face |
 | **TPS** | Right of aux zone; number or **WOT** with **TPS** caption **flush to the bottom** of the face |
 | **Swipe indicator** | Bottom center overlay (must not force RPM/TPS captions smaller than the floor) |
@@ -199,13 +198,15 @@ This screen is **tiny** (≈1.8″). Type must stay **legible at physical size**
 **Product rules ([spec.md](spec.md) §3.3.1):**
 
 1. **Label floor** — banner button-label size is the base for chrome text.
-2. **Legend floor** — value legend, dial legend, and RPM/TPS captions must be **≥ 25% larger** than the banner label size (do not shrink below this).
-3. **Primary value floor** — AFR **value** must never go below the current shipping primary size (**≥ 82 px** at 448×368).
+2. **Legend floor** — dial legend and RPM/TPS captions must be **≥ 25% larger** than the banner label size (do not shrink below this).
+3. **Primary value floor** — AFR **value** must never go below the current shipping primary size (**≥ 107 px** at 448×368).
 4. **Secondary value floor** — **RPM** and **TPS**/WOT numbers must never go below the current shipping secondary size (**≥ 53 px** at 448×368).
-5. Primary &gt; secondary &gt; legend floor &gt; label floor. Do not shrink values/legends to fit more chrome.
+5. **Lambda** is ~75% of the primary value size (not a “legend”; it is a companion unit reading).
+6. Primary &gt; lambda ≳ secondary &gt; legend floor &gt; label floor. Do not shrink values to fit more chrome.
 
-- **Value:** as large as practical above the primary floor; dominant. **Color matches the current mixture band** (same green/amber/red as the lit dial segment for that AFR — not a fixed red).
-- **Value legend / dial legend / RPM·TPS captions:** at least the legend floor (**intentionally larger than MODE/SEL**); value legend tight under the value; dial legend inside the aperture; RPM/TPS captions flush to the bottom; RPM/TPS numbers sit slightly above those captions.
+- **Value:** as large as practical above the primary floor; dominant. **Color matches the current mixture band**.
+- **Lambda:** same color as value; right of value; readable but clearly secondary to AFR.
+- **Dial legend / RPM·TPS captions:** at least the legend floor; dial legend inside the aperture; RPM/TPS captions flush to the bottom.
 - Judge at **physical ~1.8″** size, not only when zoomed.
 
 **Dial scale (non-linear):** the arc is **not** linear in AFR. Expand the important midrange so **11** and **17** sit **near the bottom corners** (with 8 and 20); compress 8–11 and 17–20 so those end zones do not dominate the dial. Control points (AFR → arc fraction): **8→0**, **11→0.14**, **17→0.86**, **20→1**. Needle and segment colors use the same map.
@@ -255,7 +256,7 @@ Do not implement MODE/SEL as on-screen touch buttons on this face.
 
 1. Face black  
 2. Dial segments  
-3. Dial legend, value, value legend  
+3. Dial legend, value, lambda  
 4. Aux RPM / TPS  
 5. Banner + edge  
 6. Button labels + status LED  
@@ -278,7 +279,7 @@ python -m mockup.capture
 - [ ] 35 segments; 8 / 20 at dial bottom corners  
 - [ ] Equal mid-side and mid-top band thickness  
 - [ ] Unlit segments visible; stoich soft-highlight  
-- [ ] Value dominates; value legend tight under it  
+- [ ] Value dominates; lambda to the right at ~75% size; no AIR/FUEL RATIO under-text  
 - [ ] RPM left, TPS right; WOT at full throttle  
 - [ ] Swipe dots at bottom  
 - [ ] Mapping unit tests pass  

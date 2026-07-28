@@ -108,7 +108,7 @@
     const BAND_AMBER_LT = 15.8;
 
     // Lexicon (product face):
-    //   banner, dial, button labels, dial legend, value, value legend,
+    //   banner, dial, button labels, dial legend, value + lambda,
     //   aux readouts (RPM / TPS), swipe indicator, status indicators
     //
     // Banner → dial (~70% of face under banner) → aux strip (~30%) → swipe overlay.
@@ -119,14 +119,14 @@
     // Dial segment band +50% (wider sides / taller top).
     const BAND_FRAC = 0.14 * 1.1 * 1.5;
     const PAGE_COUNT = 3;
-    const AFR_DIGIT_OF_HALF = 0.58 * 1.5 * 1.1 * 1.2 * 1.2 * 1.2 * 1.2;
+    const AFR_DIGIT_OF_HALF = 0.58 * 1.5 * 1.1 * 1.2 * 1.2 * 1.2 * 1.2 * 1.3; // +30%
     const TICK_OF_HALF = 0.16 * 1.5 * 1.35;
-    const CAPTION_OF_HALF = 0.12 * 1.5 * 1.35;
     const HARD_LABEL_OF_CHROME = 0.42; // banner labels = min for label text
     const LEGEND_MIN_SCALE = 1.25;     // legends ≥ 25% above banner size
+    const LAMBDA_OF_PRIMARY = 0.75;    // lambda text vs AFR value
     // Value floors at 448×368 — must not regress smaller.
-    const PRIMARY_VALUE_MIN_PX = 82;   // AFR value
-    const SECONDARY_VALUE_MIN_PX = 53; // RPM / TPS (+10% from 48; do not regress)
+    const PRIMARY_VALUE_MIN_PX = 107;  // AFR value (was 82; +30%)
+    const SECONDARY_VALUE_MIN_PX = 53; // RPM / TPS
     // Non-linear dial: expand 11–17; park 11 and 17 near bottom corners.
     const AFR_ARC_CONTROL = [
       [8.0, 0.0],
@@ -561,7 +561,10 @@
       }
 
       const readout = state.valid ? state.display.toFixed(1) : "--.-";
-      // Value up ~5%; tight value legend; block sits so legend bottom ≈ dial bottom.
+      const lambdaStr = state.valid
+        ? (state.display / AFR_STOICH).toFixed(2)
+        : "-.--";
+      // AFR value +30%; lambda to the right at 75% size (no value legend under).
       const digitPx = Math.max(
         PRIMARY_VALUE_MIN_PX,
         Math.min(
@@ -569,41 +572,34 @@
           Math.round(Math.min(L.innerHalfW, L.innerHalfH) * 0.98)
         )
       );
-      const captionPx = Math.max(legendMinPx, Math.round(half * CAPTION_OF_HALF));
-      const valueGap = Math.max(2, Math.round(digitPx * 0.08)); // tight under value
-      // Sit in lower dial aperture: legend bottom near contentBot / dial bottom.
-      const captionBottom = L.contentBot - Math.max(4, L.band * 0.35);
-      const captionY = captionBottom - captionPx;
-      const digitY = captionY - valueGap - digitPx / 2;
-      // Slight lift so value is not jammed into corners.
-      const up = Math.min(L.innerHalfH, half) * 0.05;
-      const digitYAdj = digitY - up;
-      const captionYAdj = captionY - up;
-
-      // Value color matches the current mixture band (same as lit segment color).
+      const lambdaPx = Math.max(legendMinPx, Math.round(digitPx * LAMBDA_OF_PRIMARY));
+      const digitY = cy + Math.min(L.innerHalfH, half) * 0.08;
       const valueColor = {
         green: COLORS.green,
         amber: COLORS.amber,
         red: COLORS.red,
         invalid: "#ff2a2a",
       }[state.band] || COLORS.red;
-      ctx.fillStyle = valueColor;
-      ctx.font = `bold ${digitPx}px Consolas, ui-monospace, monospace`;
+      // AFR slightly left of center; lambda immediately to its right.
+      const afrX = cx - digitPx * 0.45;
+      const lamX = afrX + digitPx * 1.25;
+
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
+      ctx.fillStyle = valueColor;
+      ctx.font = `bold ${digitPx}px Consolas, ui-monospace, monospace`;
       ctx.shadowColor = valueColor === COLORS.green
         ? "rgba(34,197,94,0.35)"
         : valueColor === COLORS.amber
           ? "rgba(245,158,11,0.35)"
           : "rgba(255,40,40,0.35)";
       ctx.shadowBlur = 8;
-      ctx.fillText(readout, cx, digitYAdj);
+      ctx.fillText(readout, afrX, digitY);
       ctx.shadowBlur = 0;
-
-      ctx.fillStyle = "#c0c0c8";
-      ctx.font = `600 ${captionPx}px Segoe UI, system-ui, sans-serif`;
-      ctx.textBaseline = "top";
-      ctx.fillText("AIR/FUEL RATIO", cx, captionYAdj);
+      ctx.globalAlpha = 0.9;
+      ctx.font = `600 ${lambdaPx}px Consolas, ui-monospace, monospace`;
+      ctx.fillText(lambdaStr, lamX, digitY);
+      ctx.globalAlpha = 1;
     }
 
     /** Aux strip: RPM (left) and TPS (right); legends flush to face bottom. */

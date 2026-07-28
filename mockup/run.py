@@ -40,13 +40,13 @@ SWIPE_DOTS_Y_FROM_BOTTOM = 12
 # Dial segment band +50% (wider sides / taller top).
 BAND_FRAC = 0.14 * 1.1 * 1.5
 PAGE_COUNT = 3
-AFR_DIGIT_OF_HALF = 0.58 * 1.5 * 1.1 * 1.2 * 1.2 * 1.2 * 1.2
+AFR_DIGIT_OF_HALF = 0.58 * 1.5 * 1.1 * 1.2 * 1.2 * 1.2 * 1.2 * 1.3  # value +30%
 TICK_OF_HALF = 0.16 * 1.5 * 1.35
-CAPTION_OF_HALF = 0.12 * 1.5 * 1.35
 HARD_LABEL_OF_CHROME = 0.42  # banner size → label floor base
 # Value floors (device px at 448×368): must not regress smaller than these.
-PRIMARY_VALUE_MIN_PX = 82   # AFR value
-SECONDARY_VALUE_MIN_PX = 53  # RPM / TPS (+10% from 48; do not regress)
+PRIMARY_VALUE_MIN_PX = 107  # AFR value (was 82; +30%)
+SECONDARY_VALUE_MIN_PX = 53  # RPM / TPS
+LAMBDA_OF_PRIMARY = 0.75  # lambda text size relative to AFR value
 # Legend floor: 25% above banner label size (legends are intentionally larger than MODE/SEL).
 LEGEND_MIN_SCALE = 1.25
 
@@ -287,7 +287,7 @@ def render_gauge_svg(
                 f'text-anchor="middle" dominant-baseline="middle">{label}</text>'
             )
 
-        # Primary value: never smaller than PRIMARY_VALUE_MIN_PX.
+        # Primary AFR value (+30%); lambda to the right at 75% size (no value legend).
         digit_px = max(
             PRIMARY_VALUE_MIN_PX,
             min(
@@ -295,31 +295,29 @@ def render_gauge_svg(
                 round(min(L["inner_half_w"], L["inner_half_h"]) * 0.98),
             ),
         )
-        caption_px = max(legend_min_px, round(half * CAPTION_OF_HALF))
-        value_gap = max(2, round(digit_px * 0.08))
-        caption_bottom = L["content_bot"] - max(4.0, L["band"] * 0.35)
-        caption_y = caption_bottom - caption_px
-        digit_y = caption_y - value_gap - digit_px / 2.0
-        up = min(L["inner_half_h"], half) * 0.05
-        digit_y -= up
-        caption_y -= up
+        lambda_px = max(legend_min_px, round(digit_px * LAMBDA_OF_PRIMARY))
+        # Vertically center value block lower in the dial aperture.
+        digit_y = cy + min(L["inner_half_h"], half) * 0.08
         value_color = {
             "green": "#22c55e",
             "amber": "#f59e0b",
             "red": "#ef4444",
             "invalid": "#ff2a2a",
         }.get(state.band.value, "#ef4444")
+        # AFR slightly left of center; lambda immediately to its right.
+        afr_x = cx - digit_px * 0.45
+        lam_x = afr_x + digit_px * 1.25
         parts.append(
-            f'<text x="{cx}" y="{digit_y:.1f}" fill="{value_color}" '
+            f'<text x="{afr_x:.1f}" y="{digit_y:.1f}" fill="{value_color}" '
             f'font-size="{digit_px}" font-weight="700" '
             f'font-family="Consolas, monospace" text-anchor="middle" '
             f'dominant-baseline="middle">{state.readout()}</text>'
         )
         parts.append(
-            f'<text x="{cx}" y="{caption_y:.1f}" fill="#c0c0c8" '
-            f'font-size="{caption_px}" font-weight="600" '
-            f'font-family="Segoe UI, Arial, sans-serif" text-anchor="middle" '
-            f'dominant-baseline="hanging">AIR/FUEL RATIO</text>'
+            f'<text x="{lam_x:.1f}" y="{digit_y:.1f}" fill="{value_color}" '
+            f'font-size="{lambda_px}" font-weight="600" opacity="0.9" '
+            f'font-family="Consolas, monospace" text-anchor="middle" '
+            f'dominant-baseline="middle">{state.lambda_readout()}</text>'
         )
 
         # Aux: RPM left, TPS right; legends flush to bottom; numbers +20%.

@@ -32,7 +32,7 @@ Host path: [install/README.md](install/README.md).
 
 ![Aether AFR face host mockup](docs/images/afr-face-mockup.gif)
 
-Simulated landscape face: **dial**, large AFR **value**, **RPM** / **TPS** (to **WOT**) below, **banner** with MODE/SEL labels and logging LED, **swipe** dots. Rebuild from [specs/afr-face.md](specs/afr-face.md).
+Simulated landscape face: **dial**, large AFR **value** with **lambda** to the right, **RPM** / **TPS** (to **WOT**) below, **banner** with MODE/SEL labels and logging LED, **swipe** dots. Rebuild from [specs/afr-face.md](specs/afr-face.md).
 
 ```text
 # From the aether product root (Python 3.11+)

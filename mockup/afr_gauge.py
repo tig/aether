@@ -100,6 +100,12 @@ class GaugeState:
             return "--.-"
         return f"{self.display_afr:.1f}"
 
+    def lambda_readout(self, stoich: float = AFR_STOICH) -> str:
+        """Lambda string (AFR/stoich), two decimals, or dashes when invalid."""
+        if not self.valid or stoich <= 0:
+            return "-.--"
+        return f"{self.display_afr / stoich:.2f}"
+
 
 def clamp_afr(afr: float) -> float:
     """Clamp AFR into the displayable scale [AFR_MIN, AFR_MAX]."""
