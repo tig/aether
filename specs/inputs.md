@@ -1,6 +1,6 @@
 # Aether inputs — live serial-class streams (display & logging)
 
-**Rev 0.2 · July 2026**  
+**Rev 0.3 · July 2026**  
 **Status:** Contract for planning and implementation handoff. Not firmware.  
 **Addresses:** [#5](https://github.com/tig/aether/issues/5) — real-time ECU data formats & serial protocols (display/logging mode).
 
@@ -523,20 +523,93 @@ Until then, product language may say “serial & CANbus” at mission level; **t
 | Speeduino secondary serial wiki + community protocol notes | `A` / `r` / secondary port |
 | ESP-IDF USB device + USB host CDC-ACM examples | ESP32-S3 roles |
 | EFI Analytics ECU definition / INI docs | och layout authority |
+| [docs/research/serial-protocols.md](../docs/research/serial-protocols.md) §12 | **OSS leverage map** (licenses, adopt vs ref-only) |
 
 ---
 
-## 15. Handoff checklist (implementation issues)
+## 15. Implementation leverage (OSS)
+
+Normative **product** choices remain in §5 and §9. This section freezes the **recommended open-source stack** for implementation tickets. Full candidate table: research notes §12.
+
+### 15.1 License policy (normative for implementers)
+
+| Rule | Detail |
+|------|--------|
+| **Metal static link** | Prefer **MIT / Apache-2.0 / BSD / Zlib**. Ship Aether framing as **original** portable C. |
+| **GPL ECU firmware** (rusEFI, FOME, Speeduino) | **Reference-only.** Study wire behavior and comments; **do not copy** `tunerstudio.cpp` / comms sources into Aether. |
+| **GPL host apps** (LibreTune GPL-2, MegaTunix, …) | May run as **separate processes** for bench smoke; **do not** link into firmware or proprietary-hostile host core without counsel. |
+| **Host CI tools** | Prefer **BSD/MIT** (pyserial, speeduino-serial-sim); MPL/LGPL OK for host-only if process boundaries are clean. |
+
+### 15.2 Recommended metal stack (P0 USB + FOME)
+
+| Layer | Component | SPDX | How used |
+|-------|-----------|------|----------|
+| Platform | **ESP-IDF** (UART, USB Host Library, FreeRTOS) | Apache-2.0 | Existing Aether plate |
+| USB host (native CDC) | **espressif/usb_host_cdc_acm** | Apache-2.0 | Enumerate FOME STM VCP / CDC; TX/RX bytes into `serial_link` |
+| USB host (UART dongles) | **espressif/usb_host_vcp** + CP210x/FTDI/CH34x drivers | Apache-2.0 | Only if path is USB–UART adapter, not native CDC |
+| USB device (bench / #1) | **esp_tinyusb** CDC (TinyUSB **MIT**) | Apache-2.0 + MIT | Aether as COM to PC sim / host bridge |
+| Framing / CRC / och poll | **Aether-owned** TS newserial + CRC32 | product | Per MS 2014 PDF; CRC via IDF ROM/`esp_crc` or small Zlib-compatible table |
+| Dialect pack | **FOME signature → compiled layout** | data | Derived from public FOME INI; not GPL C |
+| Decoder → bus | Canonical channels (§6) | product | Face 10–20 Hz; log 20–50+ Hz |
+
+```text
+USB host CDC-ACM (or VCP)  ──►  serial_link  ──►  TS frame + CRC
+                                                      │
+                                                      ▼
+                                            FOME layout pack
+                                                      │
+                                                      ▼
+                                            live channel bus ──► face + logger
+```
+
+**Explicit non-dependencies on metal:** rusEFI/FOME firmware trees, LibreTune crates, Speeduino firmware sources.
+
+### 15.3 Recommended host stack (goldens / sim)
+
+| Purpose | Component | SPDX | Notes |
+|---------|-----------|------|-------|
+| Capture live FOME frames | **pyserial** | BSD-3-Clause | Record USB-CDC sessions → `.bin` goldens for CTest |
+| Optional Rust harness | **serialport** (serialport-rs) | MPL-2.0 | Host-only |
+| Speeduino CI peer | **speeduino-serial-sim** | MIT | UART or TCP `:5000`; P1 dialect + poll-loop soak |
+| Speeduino client reference | **speeduino-to-mqtt** | MIT | Study layout parse; do not require in gate |
+| FOME/rusEFI behavioral oracle | Real FOME HIL; LibreTune/TS as external tools | GPL apps OK as external | Not a CI binary dependency |
+| Wi-Fi bridge patterns (P3) | ESP32-Serial-Bridge class (MIT) | MIT | External accessory / knowledge only |
+
+**P0 CI minimum:** host unit tests of framing + CRC + FOME layout extract against **recorded FOME frames**. Speeduino sim is **P1** for second dialect, not a substitute for FOME goldens.
+
+### 15.4 Transport-specific OSS notes
+
+| Transport | Leverage | Caution |
+|-----------|----------|---------|
+| **USB host** | ESP-IDF examples `cdc_acm_host`, `cdc_acm_vcp` | Prototype may share PHY with USB-Serial-JTAG — document active controller |
+| **USB device** | TinyUSB / esp_tinyusb CDC | Same PHY contention as host |
+| **UART** | IDF UART driver | Same decoder as USB once bytes arrive |
+| **BT SPP (P2)** | — | **ESP32-S3 has no Classic BT.** SPP needs **external module** on UART (or future SoC). NimBLE/Bluedroid on S3 = **BLE only**. |
+| **Wi-Fi TCP (P3)** | MIT serial bridges; sim ports 5000 / 29002 | Aether TCP client; reuse TS framing |
+
+### 15.5 Gaps implementers must fill (no drop-in OSS)
+
+1. **TS newserial client in C** (size + CRC32 + response flags + och poll) — write in Aether portable domain.  
+2. **FOME och layout pack** — generate from INI; no permissive published pack for face channels.  
+3. **FOME protocol simulator** — none under MIT; rely on capture + HIL.  
+4. **Board USB role default** — still open (§11 Q1); stack supports host and device once topology freezes.
+
+---
+
+## 16. Handoff checklist (implementation issues)
 
 Suggested follow-on tickets (not this PR):
 
-1. `serial_link` + USB device CDC skeleton  
-2. USB host CDC-ACM + CP210x/CH340 quirk plan  
-3. TS framing + Speeduino P0 decoder + golden tests  
-4. Canonical bus + face subscription wiring  
-5. rusEFI/FOME layout pack  
-6. BT SPP transport  
-7. Wi-Fi TCP transport  
-8. (Later) CAN section in this file  
+1. `serial_link` + **USB host CDC-ACM** (`usb_host_cdc_acm`) on prototype; document PHY/role  
+2. USB **VCP** quirk path (CP210x/CH340) if FOME is not native CDC on the car install  
+3. USB device CDC (`esp_tinyusb`) for PC sim / host bridge (#1)  
+4. **Aether TS framing + CRC32** + host golden tests from **real FOME** captures (pyserial)  
+5. **FOME** signature/layout pack + och → canonical bus  
+6. Canonical bus + face subscription wiring (RPM / load / λ)  
+7. P1: Speeduino fixed och + **speeduino-serial-sim** CI peer  
+8. Field UART twin of the same decoder  
+9. P2: external BT SPP module transport (not S3 Classic radio)  
+10. P3: Wi-Fi TCP client transport  
+11. (Later) CAN section in this file  
 
 End of `specs/inputs.md`.
