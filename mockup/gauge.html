@@ -105,28 +105,20 @@
     const BAND_AMBER_LT = 15.8;
 
     // Lexicon (product face):
-    //   banner          — top strip: button labels + status indicators
-    //   dial            — multi-segment LED gauge ring
-    //   button labels   — MODE / SEL (name physical keys; not touch targets)
-    //   dial legend     — scale marks 8 / 11 / 13 / 15 / 17 / 20 on the dial
-    //   value           — large AFR numeric readout
-    //   value legend    — "AIR/FUEL RATIO" under the value
-    //   swipe indicator — page dots at bottom
-    //   status indicators — e.g. logging LED
+    //   banner, dial, button labels, dial legend, value, value legend,
+    //   aux readouts (RPM / TPS), swipe indicator, status indicators
     //
-    // Banner sits above the dial. Dial goes to face bottom; swipe indicator overlays.
+    // Banner → dial (~70% of face under banner) → aux strip (~30%) → swipe overlay.
     const BANNER_H = 60;
-    const TOP_CHROME = BANNER_H; // alias used in layout
-    const SWIPE_DOTS_Y_FROM_BOTTOM = 14; // overlay only — dial uses full height below chrome
-    // Band thickness as fraction of the *shorter* content half-span (+10%).
+    const TOP_CHROME = BANNER_H;
+    const AUX_FRAC = 0.30; // bottom free zone for RPM / TPS (not including swipe)
+    const SWIPE_DOTS_Y_FROM_BOTTOM = 12;
     const BAND_FRAC = 0.14 * 1.1;
     const PAGE_COUNT = 3;
-    // Type from min(inner half-axes). Value +20% again on prior scale.
-    const AFR_DIGIT_OF_HALF = 0.58 * 1.5 * 1.1 * 1.2 * 1.2 * 1.2;  // value (+20% again)
-    const TICK_OF_HALF = 0.16 * 1.5;                         // dial legend
-    const CAPTION_OF_HALF = 0.12 * 1.5;                      // value legend
-    const HARD_LABEL_OF_CHROME = 0.42;                       // button labels
-    // Banner fill (distinct from dial black; light text stays legible)
+    const AFR_DIGIT_OF_HALF = 0.58 * 1.5 * 1.1 * 1.2 * 1.2 * 1.2;
+    const TICK_OF_HALF = 0.16 * 1.5;
+    const CAPTION_OF_HALF = 0.12 * 1.5;
+    const HARD_LABEL_OF_CHROME = 0.42;
     const BANNER_BG = "#1a2433";
     const BANNER_EDGE = "#2a3a52";
 
@@ -169,6 +161,8 @@
 
     let holdTarget = null;
     let holdRemaining = 0;
+    let simRpm = 2200;
+    let simTps = 18; // 0..100; 100 → WOT
     function nextSimAfr() {
       if (holdRemaining > 0) {
         holdRemaining--;
@@ -180,6 +174,17 @@
         return holdTarget;
       }
       return AFR_STOICH + (Math.random() - 0.5) * 0.7;
+    }
+    function nextSimRpmTps() {
+      // Correlated wander: throttle up → RPM up (host mock only).
+      simTps = Math.max(0, Math.min(100, simTps + (Math.random() - 0.48) * 8));
+      const targetRpm = 800 + simTps * 55 + (Math.random() - 0.5) * 200;
+      simRpm = Math.max(700, Math.min(7200, simRpm * 0.85 + targetRpm * 0.15));
+      return { rpm: Math.round(simRpm), tps: simTps };
+    }
+    function formatTps(tps) {
+      if (tps >= 98) return "WOT";
+      return `${Math.round(tps)}%`;
     }
 
     const COLORS = {
@@ -205,28 +210,28 @@
     let lastState = mapAfr(AFR_STOICH);
 
     /**
-     * Landscape layout. Dial fills full width and all height under top chrome
-     * down to the face bottom (swipe indicator overlays the dial).
+     * Banner → dial (~70% under banner) → aux strip (~30% RPM/TPS).
+     * Dial bottom = start of aux; value legend sits just above that line.
      */
     function layout(w, h) {
       const contentTop = TOP_CHROME;
-      const contentBot = h; // dial to bottom — no wasted strip under start/end
+      const auxH = Math.round(h * AUX_FRAC);
+      const auxTop = h - auxH;
+      const contentBot = auxTop; // dial ends here (at bottom of value legend zone)
       const contentH = contentBot - contentTop;
       const cx = w / 2;
       const cy = contentTop + contentH / 2;
-      // Outer rect: flush L/R of face, T under chrome, B at face bottom.
       const outerHalfW = w / 2;
       const outerHalfH = contentH / 2;
-      // Constant band thickness (mid-side width == mid-top height).
       const band = Math.min(outerHalfW, outerHalfH) * BAND_FRAC;
       const innerHalfW = Math.max(8, outerHalfW - band);
       const innerHalfH = Math.max(8, outerHalfH - band);
-      const innerCorner = Math.min(innerHalfW, innerHalfH) * 0.22 * 1.15; // +15%
-      // Ref half for type (shorter aperture axis).
+      const innerCorner = Math.min(innerHalfW, innerHalfH) * 0.22 * 1.15;
       const half = Math.min(innerHalfW, innerHalfH);
       return {
         w, h,
         contentTop, contentBot, contentH,
+        auxTop, auxH,
         half, cx, cy,
         outerHalfW, outerHalfH,
         innerHalfW, innerHalfH, innerCorner,
@@ -434,18 +439,22 @@
       }
 
       const readout = state.valid ? state.display.toFixed(1) : "--.-";
-      // Value (+20% again); block centered then shifted down in the aperture.
+      // Value up ~5%; tight value legend; block sits so legend bottom ≈ dial bottom.
       const digitPx = Math.min(
         Math.round(half * AFR_DIGIT_OF_HALF),
         Math.round(Math.min(L.innerHalfW, L.innerHalfH) * 0.95)
       );
-      const captionPx = Math.max(12, Math.round(half * CAPTION_OF_HALF));
-      const valueGap = Math.round(digitPx * 0.18);
+      const captionPx = Math.max(11, Math.round(half * CAPTION_OF_HALF));
+      const valueGap = Math.max(2, Math.round(digitPx * 0.08)); // tight under value
       const blockH = digitPx + valueGap + captionPx;
-      // Nudge down from geometric center so the pair sits lower in the hole.
-      const centerNudge = Math.min(L.innerHalfH, L.half) * 0.18;
-      const digitY = cy - blockH / 2 + digitPx / 2 + centerNudge;
-      const captionY = digitY + digitPx / 2 + valueGap;
+      // Sit in lower dial aperture: legend bottom near contentBot / dial bottom.
+      const captionBottom = L.contentBot - Math.max(4, L.band * 0.35);
+      const captionY = captionBottom - captionPx;
+      const digitY = captionY - valueGap - digitPx / 2;
+      // Move value up 5% of aperture from a pure bottom-hug if needed.
+      const up = Math.min(L.innerHalfH, half) * 0.05;
+      const digitYAdj = digitY - up;
+      const captionYAdj = captionY - up;
 
       ctx.fillStyle = "#ff2a2a";
       ctx.font = `bold ${digitPx}px Consolas, ui-monospace, monospace`;
@@ -453,13 +462,35 @@
       ctx.textBaseline = "middle";
       ctx.shadowColor = "rgba(255,40,40,0.35)";
       ctx.shadowBlur = 8;
-      ctx.fillText(readout, cx, digitY);
+      ctx.fillText(readout, cx, digitYAdj);
       ctx.shadowBlur = 0;
 
       ctx.fillStyle = "#c0c0c8";
       ctx.font = `600 ${captionPx}px Segoe UI, system-ui, sans-serif`;
       ctx.textBaseline = "top";
-      ctx.fillText("AIR/FUEL RATIO", cx, captionY);
+      ctx.fillText("AIR/FUEL RATIO", cx, captionYAdj);
+    }
+
+    /** Aux strip: RPM (left) and TPS (right), each with legend below. */
+    function drawAuxReadouts(ctx, L, rpm, tps) {
+      const midY = L.auxTop + L.auxH * 0.42;
+      const legY = L.auxTop + L.auxH * 0.72;
+      const leftX = L.w * 0.28;
+      const rightX = L.w * 0.72;
+      const numPx = Math.max(18, Math.round(L.auxH * 0.36));
+      const legPx = Math.max(11, Math.round(L.auxH * 0.18));
+
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillStyle = "#f0f0f4";
+      ctx.font = `bold ${numPx}px Consolas, ui-monospace, monospace`;
+      ctx.fillText(String(rpm), leftX, midY);
+      ctx.fillText(formatTps(tps), rightX, midY);
+
+      ctx.fillStyle = "#9a9aa8";
+      ctx.font = `600 ${legPx}px Segoe UI, system-ui, sans-serif`;
+      ctx.fillText("RPM", leftX, legY);
+      ctx.fillText("TPS", rightX, legY);
     }
 
     function drawPlaceholderPage(ctx, L, title) {
@@ -473,7 +504,7 @@
       ctx.fillText("swipe · placeholder", L.cx, L.cy + 28);
     }
 
-    function drawGauge(ctx, state, logging) {
+    function drawGauge(ctx, state, logging, rpm, tps) {
       const w = ctx.canvas.width;
       const h = ctx.canvas.height;
       const L = layout(w, h);
@@ -482,7 +513,7 @@
       ctx.fillStyle = "#050508";
       ctx.fillRect(0, 0, w, h);
 
-      // Banner — distinct from dial face (lexicon: banner)
+      // Banner
       ctx.fillStyle = BANNER_BG;
       ctx.fillRect(0, 0, w, TOP_CHROME);
       ctx.strokeStyle = BANNER_EDGE;
@@ -496,6 +527,7 @@
 
       if (page === 0) {
         drawAfrPage(ctx, L, state);
+        drawAuxReadouts(ctx, L, rpm, tps);
       } else if (page === 1) {
         drawPlaceholderPage(ctx, L, "MONITOR");
       } else {
@@ -512,6 +544,8 @@
     // Logging starts OFF; turns ON after a short demo delay.
     let logging = false;
     let tickN = 0;
+    let lastRpm = 2200;
+    let lastTps = 18;
     const LOG_ON_AFTER_TICKS = 12; // ~2s at 180ms/tick
 
     function canvasPoint(clientX, clientY) {
@@ -537,7 +571,7 @@
       if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy) * 1.2) {
         if (dx < 0) page = Math.min(PAGE_COUNT - 1, page + 1);
         else page = Math.max(0, page - 1);
-        drawGauge(ctx, lastState, logging);
+        drawGauge(ctx, lastState, logging, lastRpm, lastTps);
         updateMeta();
       }
     });
@@ -545,7 +579,7 @@
 
     function updateMeta() {
       meta.textContent =
-        `AFR ${lastState.display.toFixed(2)}  band=${lastState.band}` +
+        `AFR ${lastState.display.toFixed(2)}  RPM ${lastRpm}  TPS ${formatTps(lastTps)}` +
         `  page=${page + 1}/${PAGE_COUNT}` +
         (logging ? "  LOG●" : "  LOG○") +
         (lastState.valid ? "" : "  INVALID");
@@ -555,7 +589,10 @@
       tickN += 1;
       if (!logging && tickN >= LOG_ON_AFTER_TICKS) logging = true;
       lastState = mapAfr(nextSimAfr());
-      drawGauge(ctx, lastState, logging);
+      const rt = nextSimRpmTps();
+      lastRpm = rt.rpm;
+      lastTps = rt.tps;
+      drawGauge(ctx, lastState, logging, lastRpm, lastTps);
       updateMeta();
       requestAnimationFrame(() => setTimeout(tick, 180));
     }

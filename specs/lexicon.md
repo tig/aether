@@ -11,6 +11,7 @@ code comments — do not invent nicknames.
 | **dial legend** | Scale marks on the dial: **8 · 11 · 13 · 15 · 17 · 20** (inside the aperture, not on the LED segments). |
 | **value** | The large numeric AFR readout (e.g. `14.7`). |
 | **value legend** | The **AIR/FUEL RATIO** caption under the value. |
+| **aux readouts** | Secondary live numbers below the dial: **RPM** (left) and **TPS** (right), each with its own small legend under the number. |
 | **swipe indicator** | Page dots at the bottom of the face (swipe left/right between pages). |
 | **status indicators** | Non-text status chrome (e.g. the logging red LED). |
 

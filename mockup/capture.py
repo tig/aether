@@ -60,17 +60,21 @@ def svg_to_png(svg_path: Path, png_path: Path, *, density: int = 192) -> None:
 def capture_svg_frames(out: Path) -> list[Path]:
     out.mkdir(parents=True, exist_ok=True)
     frames = [
-        ("preview_stoich", map_afr(14.7), True, 0),
-        ("preview_rich", map_afr(10.5), True, 0),
-        ("preview_lean", map_afr(17.0), True, 0),
-        ("preview_log_off", map_afr(14.7), False, 0),
+        ("preview_stoich", map_afr(14.7), True, 0, 3200, 28.0),
+        ("preview_rich", map_afr(10.5), True, 0, 4800, 72.0),
+        ("preview_lean", map_afr(17.0), True, 0, 2100, 12.0),
+        ("preview_log_off", map_afr(14.7), False, 0, 900, 0.0),
+        ("preview_wot", map_afr(12.8), True, 0, 6500, 100.0),
     ]
     paths: list[Path] = []
-    for name, state, logging, page in frames:
+    for name, state, logging, page, rpm, tps in frames:
         svg = out / f"{name}.svg"
         png = out / f"{name}.png"
         svg.write_text(
-            render_gauge_svg(state, logging=logging, page=page), encoding="utf-8"
+            render_gauge_svg(
+                state, logging=logging, page=page, rpm=rpm, tps=tps
+            ),
+            encoding="utf-8",
         )
         svg_to_png(svg, png)
         paths.append(png)

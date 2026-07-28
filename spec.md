@@ -41,9 +41,10 @@ Summary (see afr-face for numbers):
 | Trait | Contract |
 |-------|----------|
 | Panel UI | Landscape **448×368**; native panel 368×448; hard buttons on **top** |
-| Regions | **Banner** (MODE · log LED · SEL) + **dial** full width/height under banner + **swipe indicator** overlay |
-| Dial | 35 segments, corner-to-corner (8 / 20 at bottom corners); constant band thickness |
-| Value | Large one-decimal AFR + **AIR/FUEL RATIO** value legend |
+| Regions | **Banner** + **dial** (~70% under banner) + **aux readouts** (~30%: RPM left, TPS right) + **swipe indicator** overlay |
+| Dial | 35 segments, corner-to-corner; bottom aligns with value legend bottom |
+| Value | Large one-decimal AFR + tight **AIR/FUEL RATIO** value legend |
+| Aux | Live **RPM** and **TPS** (`0%`…`WOT`) |
 | Bands | Red rich / green stoich / amber / red lean (thresholds in afr-face) |
 
 ## Runtime

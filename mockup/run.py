@@ -33,16 +33,15 @@ BANNER_H = 60  # top strip: button labels + status indicators
 TOP_CHROME = BANNER_H
 BANNER_BG = "#1a2433"
 BANNER_EDGE = "#2a3a52"
-# Dial uses full height under banner; swipe indicator overlays bottom.
-SWIPE_DOTS_Y_FROM_BOTTOM = 14
-# Constant band thickness vs shorter content half (mid-side width == mid-top height).
-BAND_FRAC = 0.14 * 1.1  # dial segments +10% (wider sides / taller top)
+# Bottom ~30% of face for RPM / TPS aux readouts; dial ends above that.
+AUX_FRAC = 0.30
+SWIPE_DOTS_Y_FROM_BOTTOM = 12
+BAND_FRAC = 0.14 * 1.1
 PAGE_COUNT = 3
-# Type as fractions of min(inner half-axes).
-AFR_DIGIT_OF_HALF = 0.58 * 1.5 * 1.1 * 1.2 * 1.2 * 1.2  # value (+20% again)
-TICK_OF_HALF = 0.16 * 1.5  # dial legend
-CAPTION_OF_HALF = 0.12 * 1.5  # value legend
-HARD_LABEL_OF_CHROME = 0.42  # button labels
+AFR_DIGIT_OF_HALF = 0.58 * 1.5 * 1.1 * 1.2 * 1.2 * 1.2
+TICK_OF_HALF = 0.16 * 1.5
+CAPTION_OF_HALF = 0.12 * 1.5
+HARD_LABEL_OF_CHROME = 0.42
 
 
 def _stoich_segment_index(n: int = SEGMENT_COUNT) -> int:
@@ -66,23 +65,26 @@ def _segment_svg_color(band: str, lit: bool, *, stoich: bool = False) -> str:
 
 def _layout(w: int = FACE_W, h: int = FACE_H) -> dict:
     content_top = TOP_CHROME
-    content_bot = h  # dial to face bottom — no wasted strip under start/end
+    aux_h = round(h * AUX_FRAC)
+    aux_top = h - aux_h
+    content_bot = aux_top  # dial ends at aux top (value legend bottoms here)
     content_h = content_bot - content_top
     cx = w / 2.0
     cy = content_top + content_h / 2.0
-    # Outer: full panel width, full height under chrome to bottom.
     outer_half_w = w / 2.0
     outer_half_h = content_h / 2.0
     band = min(outer_half_w, outer_half_h) * BAND_FRAC
     inner_half_w = max(8.0, outer_half_w - band)
     inner_half_h = max(8.0, outer_half_h - band)
-    inner_corner = min(inner_half_w, inner_half_h) * 0.22 * 1.15  # +15%
+    inner_corner = min(inner_half_w, inner_half_h) * 0.22 * 1.15
     half = min(inner_half_w, inner_half_h)
     return {
         "w": w,
         "h": h,
         "content_top": float(content_top),
         "content_bot": float(content_bot),
+        "aux_top": float(aux_top),
+        "aux_h": float(aux_h),
         "half": half,
         "cx": cx,
         "cy": cy,
@@ -98,6 +100,13 @@ def _layout(w: int = FACE_W, h: int = FACE_H) -> dict:
         "log_r": 9.0,
         "dots_y": h - SWIPE_DOTS_Y_FROM_BOTTOM,
     }
+
+
+def format_tps(tps: float) -> str:
+    """Throttle position: 0% … 99%, WOT near full."""
+    if tps >= 98:
+        return "WOT"
+    return f"{int(round(tps))}%"
 
 
 def _radius_to_rounded_rect(
@@ -166,8 +175,10 @@ def render_gauge_svg(
     *,
     logging: bool = True,
     page: int = 0,
+    rpm: int = 3200,
+    tps: float = 35.0,
 ) -> str:
-    """Landscape 448×368 face: hard-button labels, log LED, gauge, swipe dots."""
+    """Landscape 448×368 face: banner, dial, AFR value, RPM/TPS aux, swipe dots."""
     L = _layout(w, h)
     cx, cy = L["cx"], L["cy"]
     n = len(state.segment_bands)
@@ -266,17 +277,19 @@ def render_gauge_svg(
                 f'text-anchor="middle" dominant-baseline="middle">{label}</text>'
             )
 
-        # Value (+20% again) + value legend; centered then nudged down in aperture.
+        # Value up ~5%; tight value legend; bottoms near dial content_bot.
         digit_px = min(
             round(half * AFR_DIGIT_OF_HALF),
             round(min(L["inner_half_w"], L["inner_half_h"]) * 0.95),
         )
-        caption_px = max(12, round(half * CAPTION_OF_HALF))
-        value_gap = round(digit_px * 0.18)
-        block_h = digit_px + value_gap + caption_px
-        center_nudge = min(L["inner_half_h"], half) * 0.18
-        digit_y = cy - block_h / 2.0 + digit_px / 2.0 + center_nudge
-        caption_y = digit_y + digit_px / 2.0 + value_gap
+        caption_px = max(11, round(half * CAPTION_OF_HALF))
+        value_gap = max(2, round(digit_px * 0.08))
+        caption_bottom = L["content_bot"] - max(4.0, L["band"] * 0.35)
+        caption_y = caption_bottom - caption_px
+        digit_y = caption_y - value_gap - digit_px / 2.0
+        up = min(L["inner_half_h"], half) * 0.05
+        digit_y -= up
+        caption_y -= up
         parts.append(
             f'<text x="{cx}" y="{digit_y:.1f}" fill="#ff2a2a" '
             f'font-size="{digit_px}" font-weight="700" '
@@ -289,6 +302,38 @@ def render_gauge_svg(
             f'font-family="Segoe UI, Arial, sans-serif" text-anchor="middle" '
             f'dominant-baseline="hanging">AIR/FUEL RATIO</text>'
         )
+
+        # Aux: RPM left, TPS right
+        mid_y = L["aux_top"] + L["aux_h"] * 0.42
+        leg_y = L["aux_top"] + L["aux_h"] * 0.72
+        left_x = w * 0.28
+        right_x = w * 0.72
+        num_px = max(18, round(L["aux_h"] * 0.36))
+        leg_px = max(11, round(L["aux_h"] * 0.18))
+        parts.append(
+            f'<text x="{left_x:.1f}" y="{mid_y:.1f}" fill="#f0f0f4" '
+            f'font-size="{num_px}" font-weight="700" '
+            f'font-family="Consolas, monospace" text-anchor="middle" '
+            f'dominant-baseline="middle">{rpm}</text>'
+        )
+        parts.append(
+            f'<text x="{right_x:.1f}" y="{mid_y:.1f}" fill="#f0f0f4" '
+            f'font-size="{num_px}" font-weight="700" '
+            f'font-family="Consolas, monospace" text-anchor="middle" '
+            f'dominant-baseline="middle">{format_tps(tps)}</text>'
+        )
+        parts.append(
+            f'<text x="{left_x:.1f}" y="{leg_y:.1f}" fill="#9a9aa8" '
+            f'font-size="{leg_px}" font-weight="600" '
+            f'font-family="Segoe UI, Arial, sans-serif" text-anchor="middle" '
+            f'dominant-baseline="middle">RPM</text>'
+        )
+        parts.append(
+            f'<text x="{right_x:.1f}" y="{leg_y:.1f}" fill="#9a9aa8" '
+            f'font-size="{leg_px}" font-weight="600" '
+            f'font-family="Segoe UI, Arial, sans-serif" text-anchor="middle" '
+            f'dominant-baseline="middle">TPS</text>'
+        )
     else:
         title = "MONITOR" if page == 1 else "LOGGER"
         parts.append(
@@ -297,7 +342,7 @@ def render_gauge_svg(
             f'text-anchor="middle" dominant-baseline="middle">{title}</text>'
         )
 
-    # Swipe indicator overlaid on dial bottom (no dead band under the dial)
+    # Swipe indicator overlay
     gap = 14
     total_w = (PAGE_COUNT - 1) * gap
     x0 = cx - total_w / 2

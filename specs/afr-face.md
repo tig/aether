@@ -65,36 +65,38 @@ Coordinate origin: **top-left**. +X right, +Y down.
 
 ```
 Y=0  ┌────────────────────────────────────────────┐
-     │  MODE          ● (log LED)           SEL   │  ← banner (H = 60)
+     │  MODE          ● (log LED)           SEL   │  ← banner
      ├────────────────────────────────────────────┤
-     │ ████████  dial segments (full width) █████ │
-     │ ██                                    ██  │
-     │ ██     dial legend   value            ██  │
-     │ ██                 value legend       ██  │
-     │ ██  8                          20     ██  │
-     │ ████████ (to face bottom)         █████ │
-     │              ● ○ ○  swipe indicator       │  ← overlay, not a dead strip
+     │ ████████  dial (full width)          █████ │
+     │ ██   dial legend   value              ██  │
+     │ ██               value legend         ██  │
+     │ ██  8 (corner)              20 (corner)██  │  ← dial bottom ≈ value legend bottom
+     ├────────────────────────────────────────────┤
+     │     RPM 1234              42% / WOT        │  ← ~30% face height: aux readouts
+     │      RPM                    TPS            │
+     │              ● ○ ○  swipe indicator       │  ← overlay at very bottom
 Y=H  └────────────────────────────────────────────┘
 ```
 
 ### 4.1 Regions
 
-| Region | Geometry (px) |
-|--------|----------------|
+| Region | Geometry / intent |
+|--------|-------------------|
 | Face | `W=448`, `H=368` |
-| **Banner** | `y ∈ [0, BANNER_H)`, `BANNER_H = 60` |
-| **Dial outer** | Rectangle filling **full width** and **all height under banner to bottom**: `x ∈ [0,W]`, `y ∈ [BANNER_H, H]` |
-| **Swipe indicator** | Overlay near bottom: center y ≈ `H - 14` (does **not** shrink the dial) |
+| **Banner** | Top strip (~60 px): button labels + status LED |
+| **Dial** | Full width; height is everything under the banner **except** the bottom ~**30%** of the face reserved for aux readouts. Dial start/end (scale 8 and 20) sit at the **bottom of this dial region**, which should align with the bottom of the **value legend**. |
+| **Aux readouts** | Bottom ~**30%** of face height (below the dial; swipe dots overlay the bottom of this zone). **RPM** left, **TPS** right. |
+| **Swipe indicator** | Overlay near the face bottom — does not steal an extra dead strip from the dial |
 
 ### 4.2 Dial outer / inner geometry
 
-Center of dial content band:
-
 ```
-cx = W / 2
-cy = BANNER_H + (H - BANNER_H) / 2
-outer_half_w = W / 2                    # 224
-outer_half_h = (H - BANNER_H) / 2       # 154
+aux_h      ≈ 0.30 * H
+dial_bot   = H - aux_h
+cx         = W / 2
+cy         = BANNER_H + (dial_bot - BANNER_H) / 2
+outer_half_w = W / 2
+outer_half_h = (dial_bot - BANNER_H) / 2
 ```
 
 **Constant band thickness** (mid-side width equals mid-top height):
@@ -230,24 +232,34 @@ This face is **tiny** (≈1.8″). Type must stay **legible at physical size**, 
 | **Button labels** | **Banner**: MODE left, SEL right, vertically centered in the banner strip | Clear left/right pairing with the hard buttons above those ends of the panel. Light ink on the banner so they stay legible. |
 | **Status LED** | Banner center, between the button labels | Small round indicator only — no “LOG” text on the face. See §7. |
 | **Dial legend** | **Inside the dial aperture**, just inboard of the LED ring (not drawn on top of segments) | Sit on the same angular positions as the scale (AFR-proportional along the arc). Marks at **8, 11, 13, 15, 17, 20**. Corner marks **8** and **20** near the bottom-left and bottom-right starts of the dial. Must remain readable without covering the value. |
-| **Value** | Center of the aperture, with the value legend as one vertical group | The **value + value legend** block should feel **centered in the open aperture**, with a slight bias **downward** so it does not crowd the upper dial legend (13 / 15). Leave breathing room to the ring and to the swipe indicator. |
-| **Value legend** | Directly under the value, same horizontal center | Visually attached to the value (tight stack), not floating near the bottom of the face. |
-| **Swipe indicator** | Bottom center of the face | Overlaid on the dial; small page dots; must not require a reserved empty strip that shrinks the dial. |
+| **Value** | Inside dial aperture, upper-middle | Dominant AFR number. Sit **slightly higher** than a pure mid-aperture center (~5% of aperture up from a bottom-hugging stack) so it stays clear of the dial bottom corners. |
+| **Value legend** | Directly under the value, **tight** gap | Same horizontal center; visually attached to the value. The **bottom of the value legend** should sit at the **bottom of the dial** (where the 8 / 20 corners live). |
+| **RPM aux** | Left half of the bottom ~30% zone | Large live RPM number; small **RPM** legend under it. |
+| **TPS aux** | Right half of the bottom ~30% zone | Live throttle: `0%` … `99%`, and **WOT** at full throttle; small **TPS** legend under it. |
+| **Swipe indicator** | Bottom center of the face | Overlaid on the aux zone; small page dots. |
 
 ### 6.3 Size intent (not magic ratios)
 
-- **Value:** as large as the aperture allows while still fitting `20.0` (or `--.-`) **and** the value legend underneath without collision or clipping into the dial segments.
-- **Value legend:** clearly smaller than the value; still legible at 1.8″; same family as other UI sans labels.
-- **Dial legend:** large enough to read on the device; small enough that the set of marks does not fill the aperture or collide with the value block.
-- **Button labels:** large enough to read in the banner at a glance; they are the only text that explains the hard keys.
-- Prefer **bold / heavy weight** for the value; medium–semibold for legends and button labels.
-- Colors: value **strong red**; dial legend and value legend **light gray** on black; button labels **light** on the banner.
+- **Value:** as large as the (now shorter) dial aperture allows while still fitting `20.0` / `--.-` and a tight value legend without clipping into segments.
+- **Value legend:** clearly smaller than the value; tight under it; still legible at 1.8″.
+- **Dial legend:** readable; inside aperture; must not fight the value.
+- **RPM / TPS numbers:** secondary to the AFR value but clearly live telemetry — large enough to read at a glance in the bottom third.
+- **RPM / TPS legends:** small captions under those numbers (`RPM`, `TPS`).
+- **Button labels:** large enough to read in the banner at a glance.
+- Prefer **bold** for value and aux numbers; medium–semibold for legends.
+- Colors: value **strong red**; aux numbers light; legends muted gray; button labels light on the banner.
+
+### 6.4 TPS display rule
+
+- Range conceptually **0% … full throttle**.
+- Show integer percent for partial throttle (`0%` … `99%`).
+- At full throttle (≈100%), show **`WOT`** (wide-open throttle), not `100%`.
 
 If a rebuild looks wrong, fix hierarchy and collisions first — do not invent a new face by stacking more ad-hoc scale factors in the spec.
 
-### 6.4 Fonts
+### 6.5 Fonts
 
-- **Value:** bold monospace (or monospaced digit face) so `1` / `7` / `.` stay stable as numbers change.
+- **Value and aux numbers:** bold monospace (or monospaced digit face) so digits stay stable as values change.
 - **Everything else:** clean sans-serif UI face.
 
 ---
@@ -329,12 +341,12 @@ SVG twin: `python -m mockup` → `mockup/out/afr_gauge.svg`.
 ### Acceptance checklist
 
 - [ ] Landscape 448×368; banner distinct color; MODE / LED / SEL legible  
-- [ ] Dial fills width and height under banner to bottom  
-- [ ] 35 segments; 8 and 20 at bottom corners  
+- [ ] Dial fills width under banner; dial bottom ≈ value legend bottom; ~30% face height free below for aux  
+- [ ] 35 segments; 8 and 20 at bottom corners of the dial  
 - [ ] Mid-side band thickness equals mid-top band thickness  
 - [ ] Unlit segments visible; stoich soft-highlight when not lit  
-- [ ] Dial legend inside aperture; value dominates; value legend under value  
-- [ ] Value + value legend read as one centered (slightly low) block in the aperture  
+- [ ] Dial legend inside aperture; value dominates; value legend tight under value  
+- [ ] RPM left + TPS right in aux zone with legends; TPS uses WOT at full  
 - [ ] Type hierarchy holds at ~1.8″ physical size (not only when zoomed)  
 - [ ] Logging LED bright vs dim red  
 - [ ] Swipe dots overlaid at bottom  
