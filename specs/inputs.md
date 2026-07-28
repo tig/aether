@@ -1,6 +1,6 @@
 # Aether inputs — live serial-class streams (display & logging)
 
-**Rev 0.3 · July 2026**  
+**Rev 0.4 · July 2026**  
 **Status:** Contract for planning and implementation handoff. Not firmware.  
 **Addresses:** [#5](https://github.com/tig/aether/issues/5) — real-time ECU data formats & serial protocols (display/logging mode).
 
