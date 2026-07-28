@@ -62,8 +62,8 @@
 <body>
   <h1>AETHER · SQUARE AFR FACE</h1>
   <p class="sub">
-    Square panel, circular gauge flush left / top / right.
-    Fat bottom <strong>MODE</strong> / <strong>SEL</strong>. Simulated AFR only.
+    Square panel; circular inner ring; segment length grows toward the corners
+    so the arc fills flush left / top / right. Fat <strong>MODE</strong> / <strong>SEL</strong>.
   </p>
   <div class="device" id="device">
     <canvas id="gauge" width="368" height="368" aria-label="Air fuel ratio gauge, square face"></canvas>
@@ -158,16 +158,36 @@
       const btnY = h - stripH;
       const btnH = stripH;
       const btnW = (w - BTN_GAP) / 2;
-      // Circle diameter = full width → flush left & right; center so top is flush.
-      const outerR = w / 2;
+      // Center of face; min side half-width for circular inner ring.
+      const half = w / 2;
       const cx = w / 2;
-      const cy = outerR; // top of circle at y=0
+      const cy = half; // mid-face so mid-side rays hit L/T/R edges
       return {
-        w, h, stripH,
-        cx, cy, outerR,
+        w, h, stripH, btnY, half,
+        cx, cy,
+        // Circular inner radius (constant); outer grows toward corners / edges.
+        innerR: half * 0.70,
         mode: { x: 0, y: btnY, w: btnW, h: btnH, id: "mode" },
         sel:  { x: btnW + BTN_GAP, y: btnY, w: btnW, h: btnH, id: "sel" },
       };
+    }
+
+    /**
+     * Distance from center to the square face boundary along angle a
+     * (our convention: x = cx + r*cos(a), y = cy - r*sin(a)).
+     * Mid-side rays are shorter (to the edge); corner rays are longer
+     * (e.g. top-left ~AFR 12 reaches the corner). Bottom clamped above MODE/SEL.
+     */
+    function outerRadiusAt(a, L) {
+      const dx = Math.cos(a);
+      const dy = -Math.sin(a); // screen-space ray direction
+      let rMax = Infinity;
+      if (dx > 1e-9) rMax = Math.min(rMax, (L.w - L.cx) / dx);
+      if (dx < -1e-9) rMax = Math.min(rMax, (0 - L.cx) / dx);
+      if (dy > 1e-9) rMax = Math.min(rMax, (L.btnY - L.cy) / dy);
+      if (dy < -1e-9) rMax = Math.min(rMax, (0 - L.cy) / dy);
+      // Stay slightly inside the pixel edge
+      return Math.max(L.innerR + 4, rMax - 0.5);
     }
 
     function drawButton(ctx, rect, label, active) {
@@ -198,8 +218,7 @@
       ctx.fillStyle = "#050508";
       ctx.fillRect(0, 0, w, h);
 
-      const { cx, cy, outerR } = L;
-      const innerR = outerR * 0.78;
+      const { cx, cy, innerR } = L;
       // Nearly full circle; leave a bottom gap so digits / buttons stay clear
       const startDeg = 225;
       const sweepDeg = 270;
@@ -210,21 +229,22 @@
         return [cx + r * Math.cos(a), cy - r * Math.sin(a)];
       }
 
+      // Variable-length radial segments: circular inner ring, outer edge follows
+      // the square (long toward corners / top-left ~12, shorter at mid-sides).
       for (let i = 0; i < n; i++) {
         const a0 = (startDeg - (i / n) * sweepDeg) * Math.PI / 180;
         const a1 = (startDeg - ((i + 1) / n) * sweepDeg) * Math.PI / 180;
-        const gap = 0.01;
+        const gap = 0.012;
         const aa0 = a0 - gap;
         const aa1 = a1 + gap;
+        const steps = 8;
         ctx.beginPath();
-        const [x0o, y0o] = pt(outerR, aa0);
-        ctx.moveTo(x0o, y0o);
-        const steps = 6;
-        for (let s = 1; s <= steps; s++) {
+        for (let s = 0; s <= steps; s++) {
           const t = s / steps;
           const a = aa0 + (aa1 - aa0) * t;
-          const [x, y] = pt(outerR, a);
-          ctx.lineTo(x, y);
+          const [x, y] = pt(outerRadiusAt(a, L), a);
+          if (s === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
         }
         for (let s = steps; s >= 0; s--) {
           const t = s / steps;

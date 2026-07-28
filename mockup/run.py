@@ -47,13 +47,15 @@ def _layout(size: int = FACE_SIZE) -> dict:
     btn_y = size - strip_h
     btn_h = strip_h
     btn_w = (size - BTN_GAP) / 2
-    outer_r = size / 2.0
+    half = size / 2.0
     return {
         "size": size,
         "strip_h": strip_h,
-        "cx": size / 2.0,
-        "cy": outer_r,  # top of circle flush with y=0
-        "outer_r": outer_r,
+        "btn_y": float(btn_y),
+        "cx": half,
+        "cy": half,
+        "half": half,
+        "inner_r": half * 0.70,
         "mode": {
             "x": 0.0,
             "y": float(btn_y),
@@ -71,14 +73,31 @@ def _layout(size: int = FACE_SIZE) -> dict:
     }
 
 
+def _outer_radius_at(a: float, L: dict) -> float:
+    """Ray from center to square L/T/R (and button-top) boundary — longer at corners."""
+    dx = math.cos(a)
+    dy = -math.sin(a)
+    w = L["size"]
+    cx, cy = L["cx"], L["cy"]
+    r_max = float("inf")
+    if dx > 1e-9:
+        r_max = min(r_max, (w - cx) / dx)
+    if dx < -1e-9:
+        r_max = min(r_max, (0.0 - cx) / dx)
+    if dy > 1e-9:
+        r_max = min(r_max, (L["btn_y"] - cy) / dy)
+    if dy < -1e-9:
+        r_max = min(r_max, (0.0 - cy) / dy)
+    return max(L["inner_r"] + 4.0, r_max - 0.5)
+
+
 def render_gauge_svg(state, size: int = FACE_SIZE) -> str:
-    """Square face: circular arc flush L/T/R; MODE/SEL flush bottom (no sublabels)."""
+    """Square face: variable-length radial segments to edges; MODE/SEL flush bottom."""
     L = _layout(size)
     w = h = size
     cx = L["cx"]
     cy = L["cy"]
-    outer_r = L["outer_r"]
-    inner_r = outer_r * 0.78
+    inner_r = L["inner_r"]
     n = len(state.segment_bands)
     start_deg = 225.0
     sweep_deg = 270.0
@@ -90,22 +109,25 @@ def render_gauge_svg(state, size: int = FACE_SIZE) -> str:
     ]
 
     lit_set = set(state.lit_indices)
+    steps = 8
     for i, band in enumerate(state.segment_bands):
         a0 = math.radians(start_deg - (i / n) * sweep_deg)
         a1 = math.radians(start_deg - ((i + 1) / n) * sweep_deg)
-        gap = 0.01
-        a0 -= gap
-        a1 += gap
-        x0o, y0o = cx + outer_r * math.cos(a0), cy - outer_r * math.sin(a0)
-        x1o, y1o = cx + outer_r * math.cos(a1), cy - outer_r * math.sin(a1)
-        x1i, y1i = cx + inner_r * math.cos(a1), cy - inner_r * math.sin(a1)
-        x0i, y0i = cx + inner_r * math.cos(a0), cy - inner_r * math.sin(a0)
+        gap = 0.012
+        aa0 = a0 - gap
+        aa1 = a1 + gap
+        pts: list[str] = []
+        for s in range(steps + 1):
+            t = s / steps
+            a = aa0 + (aa1 - aa0) * t
+            r = _outer_radius_at(a, L)
+            pts.append(f"{cx + r * math.cos(a):.2f},{cy - r * math.sin(a):.2f}")
+        for s in range(steps, -1, -1):
+            t = s / steps
+            a = aa0 + (aa1 - aa0) * t
+            pts.append(f"{cx + inner_r * math.cos(a):.2f},{cy - inner_r * math.sin(a):.2f}")
         color = _segment_svg_color(band.value, i in lit_set)
-        d = (
-            f"M {x0o:.2f} {y0o:.2f} A {outer_r:.2f} {outer_r:.2f} 0 0 1 {x1o:.2f} {y1o:.2f} "
-            f"L {x1i:.2f} {y1i:.2f} A {inner_r:.2f} {inner_r:.2f} 0 0 0 {x0i:.2f} {y0i:.2f} Z"
-        )
-        parts.append(f'<path d="{d}" fill="{color}"/>')
+        parts.append(f'<polygon points="{" ".join(pts)}" fill="{color}"/>')
 
     for mark, label in ((8, "8"), (11, "11"), (13, "13"), (15, "15"), (17, "17"), (20, "20")):
         t = (mark - AFR_MIN) / (AFR_MAX - AFR_MIN)
