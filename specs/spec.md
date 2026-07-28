@@ -15,7 +15,7 @@ Screen-specific layout lives elsewhere (see [Spec map](#spec-map)). Do not dump 
 | **[specs/spec.md](spec.md)** (this file) | Product mission, hardware target, value requirements (HW + SW) |
 | **[specs/afr-face.md](afr-face.md)** | **AFR screen only** — layout, dial, type, RPM/TPS on that face |
 | **[specs/lexicon.md](lexicon.md)** | Face and product phrase book |
-| **[specs/logging.md](logging.md)** | Logging formats (canonical MLG), markers, export, storage; §14 OSS leverage |
+| *future* `specs/logging.md` | Logging, review, export, analysis |
 | *future* `specs/setup.md` | First-run, profiles, fuels, alarms config |
 | *future* `specs/inputs.md` | Serial / CAN / sensor wiring and identity |
 
@@ -175,9 +175,7 @@ This is a **~1.8″** face. Text that looks fine when zoomed on a desktop can be
 - Session management: multiple runs, notes, weather/conditions metadata.
 - Simple playback with cursors for scrubbing a pull.
 
-**Format strategy (summary):** on-device canonical logs are **EFI Analytics MLVLG v2 (`.mlg`)** so files open natively in MegaLogViewer with event markers; export **`.msl`**, **CSV**, and host **JSON** for interchange and LLM pull. Always-on logging, drive tags, and `SEQ_START` / `SEQ_END` / user marks are part of that model.
-
-*Contract detail: [logging.md](logging.md) (issues [#3](https://github.com/tig/aether/issues/3), [#2](https://github.com/tig/aether/issues/2), [#1](https://github.com/tig/aether/issues/1)).*
+*Detail for this area belongs in a future `specs/logging.md`.*
 
 ### 3.7 Multi-sensor and system integration
 
@@ -268,6 +266,5 @@ Systems that meet **must-have** and **highly valuable** items turn oxygen measur
 |------|------|
 | `mockup/` | Host-runnable AFR face (simulated AFR, RPM, TPS) |
 | `docs/images/afr-face-mockup.gif` | Visual target for the AFR screen |
-| `docs/research/logging-formats.md` | Non-normative format survey + OSS leverage map behind logging.md |
 | `firmware/`, `host/` | C plate (identity, host tests) |
 | [README.md](../README.md) | Human entry |
