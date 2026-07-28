@@ -22,6 +22,8 @@ Host path: [install/README.md](install/README.md).
 
 ## AFR gauge mockup (host)
 
+![Aether AFR face host mockup](docs/images/afr-face-mockup.gif)
+
 Simulated air–fuel ratio in **landscape** (logical **448×368**; native panel 368×448 rotated so USB + hard buttons are on top): LED arc, scale **8–20**, large center readout with **AIR/FUEL RATIO** under the value. **MODE** / **SEL** are **labels** for the physical keys (not on-screen buttons). Logging is a **red LED** between those labels. **Page dots** at the bottom mean swipe left/right.
 
 ```text

@@ -32,6 +32,8 @@ On the workbench and in the vehicle, Aether should eventually:
 **Normative reimplementation contract:** [specs/afr-face.md](specs/afr-face.md)  
 **Lexicon:** [specs/lexicon.md](specs/lexicon.md)
 
+![Aether AFR face host mockup](docs/images/afr-face-mockup.gif)
+
 Host mockup (`mockup/`) is the working reference for landscape 448×368 face layout, dial geometry, colors, and type. Agents rebuilding the face must follow **afr-face.md** and prove the result with `python -m mockup.capture` + visual inspect — not code-only claims.
 
 Summary (see afr-face for numbers):

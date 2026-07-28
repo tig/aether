@@ -18,6 +18,12 @@ A landscape **wideband-style AFR face** on a tiny AMOLED:
 - **Banner** names physical **MODE** / **SEL** and shows **logging** via a **status indicator** (no text on the LED).
 - **Swipe indicator** hints at more pages; page 0 is the AFR face.
 
+**Reference motion (host mockup):**
+
+![Aether AFR face host mockup](../docs/images/afr-face-mockup.gif)
+
+This GIF is the visual target for layout, type, banner, dial motion, logging LED, and overall feel. Rebuild to match it; use [§11 verification](#11-host-verification-agents) after changes.
+
 Not a pixel clone of a commercial 52 mm gauge. Not live OBD/CAN in this pass — simulated AFR is fine for host mockups.
 
 ---
