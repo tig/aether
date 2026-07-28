@@ -29,13 +29,11 @@
       margin: 0;
       line-height: 1.35;
     }
-    /* Device-class square frame (mockup ~368 CSS px; scales with CSS) */
     .device {
       width: min(92vw, 420px);
       aspect-ratio: 1 / 1;
       background: #000;
-      border: 2px solid #2a2a2a;
-      border-radius: 12px;
+      border: 1px solid #333;
       box-shadow: 0 12px 40px rgba(0,0,0,0.55);
       overflow: hidden;
       position: relative;
@@ -64,9 +62,8 @@
 <body>
   <h1>AETHER · SQUARE AFR FACE</h1>
   <p class="sub">
-    Adapted for a <strong>square</strong> AMOLED (not a round 52&nbsp;mm bezel).
-    Large bottom <strong>MODE</strong> / <strong>SEL</strong> hit targets for a tiny touch panel.
-    Simulated AFR only.
+    Square panel, circular gauge flush left / top / right.
+    Fat bottom <strong>MODE</strong> / <strong>SEL</strong>. Simulated AFR only.
   </p>
   <div class="device" id="device">
     <canvas id="gauge" width="368" height="368" aria-label="Air fuel ratio gauge, square face"></canvas>
@@ -75,8 +72,8 @@
   <div class="badge">tap MODE / SEL · python -m mockup for stream dump</div>
 
   <script>
-    // Visual twin of mockup/afr_gauge.py mapping (Python is canonical / unit-tested).
-    // Layout is square-screen native: gauge region + fat bottom touch bar.
+    // Visual twin of mockup/afr_gauge.py (Python is canonical / unit-tested).
+    // Square face: circular arc diameter = width (flush L/T/R); MODE/SEL flush bottom.
     const AFR_MIN = 8.0;
     const AFR_MAX = 20.0;
     const AFR_STOICH = 14.7;
@@ -85,11 +82,9 @@
     const BAND_GREEN_LT = 15.0;
     const BAND_AMBER_LT = 15.8;
 
-    // Square face layout (logical px @ 368×368 device class)
-    // Button strip ~22% of height so fingers hit targets on a ~1.8″ panel.
-    const BTN_STRIP_FRAC = 0.22;
-    const BTN_GAP = 10;
-    const BTN_MARGIN = 10;
+    // Bottom bar height; buttons flush to L/R/B with a thin gap between.
+    const BTN_STRIP_FRAC = 0.18;
+    const BTN_GAP = 6;
 
     function clampAfr(afr) {
       return Math.min(AFR_MAX, Math.max(AFR_MIN, afr));
@@ -148,64 +143,50 @@
       amber: "#f59e0b",
       red: "#ef4444",
       invalid: "#444",
-      dim: "#222226",
+      dim: "#1a1a1e",
     };
 
-    // UI chrome state (mockup only — teaches touch affordances)
     const MODES = ["LIVE", "PEAK", "AVG"];
     let modeIdx = 0;
     let selHold = false;
-    let flashBtn = null; // "mode" | "sel" | null
+    let flashBtn = null;
     let flashUntil = 0;
     let lastState = mapAfr(AFR_STOICH);
 
     function layout(w, h) {
       const stripH = Math.round(h * BTN_STRIP_FRAC);
-      const gaugeH = h - stripH;
-      const btnY = gaugeH + BTN_MARGIN;
-      const btnH = stripH - BTN_MARGIN * 2;
-      const btnW = (w - BTN_MARGIN * 2 - BTN_GAP) / 2;
+      const btnY = h - stripH;
+      const btnH = stripH;
+      const btnW = (w - BTN_GAP) / 2;
+      // Circle diameter = full width → flush left & right; center so top is flush.
+      const outerR = w / 2;
+      const cx = w / 2;
+      const cy = outerR; // top of circle at y=0
       return {
-        w, h, stripH, gaugeH,
-        mode: { x: BTN_MARGIN, y: btnY, w: btnW, h: btnH, id: "mode" },
-        sel:  { x: BTN_MARGIN + btnW + BTN_GAP, y: btnY, w: btnW, h: btnH, id: "sel" },
+        w, h, stripH,
+        cx, cy, outerR,
+        mode: { x: 0, y: btnY, w: btnW, h: btnH, id: "mode" },
+        sel:  { x: btnW + BTN_GAP, y: btnY, w: btnW, h: btnH, id: "sel" },
       };
     }
 
-    function roundRect(ctx, x, y, w, h, r) {
-      const rr = Math.min(r, w / 2, h / 2);
-      ctx.beginPath();
-      ctx.moveTo(x + rr, y);
-      ctx.arcTo(x + w, y, x + w, y + h, rr);
-      ctx.arcTo(x + w, y + h, x, y + h, rr);
-      ctx.arcTo(x, y + h, x, y, rr);
-      ctx.arcTo(x, y, x + w, y, rr);
-      ctx.closePath();
-    }
-
-    function drawButton(ctx, rect, label, sub, active) {
+    function drawButton(ctx, rect, label, active) {
       const now = performance.now();
       const flashing = flashBtn === rect.id && now < flashUntil;
-      const fill = flashing ? "#2a3a55" : (active ? "#1e2a3a" : "#18181c");
-      const stroke = flashing ? "#6af" : (active ? "#4a7ab0" : "#3a3a42");
-      roundRect(ctx, rect.x, rect.y, rect.w, rect.h, 12);
+      const fill = flashing ? "#2a3a55" : (active ? "#1e2a3a" : "#141418");
+      const stroke = flashing ? "#6af" : (active ? "#4a7ab0" : "#2e2e36");
       ctx.fillStyle = fill;
-      ctx.fill();
-      ctx.lineWidth = 2;
+      ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
       ctx.strokeStyle = stroke;
-      ctx.stroke();
+      ctx.lineWidth = 2;
+      ctx.strokeRect(rect.x + 1, rect.y + 1, rect.w - 2, rect.h - 2);
 
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.fillStyle = "#eee";
-      // ~14–16px label on 368 device ≈ readable; scale with button height
-      const titlePx = Math.max(16, Math.round(rect.h * 0.32));
-      const subPx = Math.max(11, Math.round(rect.h * 0.20));
+      const titlePx = Math.max(18, Math.round(rect.h * 0.42));
       ctx.font = `700 ${titlePx}px Segoe UI, system-ui, sans-serif`;
-      ctx.fillText(label, rect.x + rect.w / 2, rect.y + rect.h * 0.40);
-      ctx.fillStyle = "#8ab";
-      ctx.font = `600 ${subPx}px Segoe UI, system-ui, sans-serif`;
-      ctx.fillText(sub, rect.x + rect.w / 2, rect.y + rect.h * 0.68);
+      ctx.fillText(label, rect.x + rect.w / 2, rect.y + rect.h / 2);
     }
 
     function drawGauge(ctx, state) {
@@ -217,29 +198,11 @@
       ctx.fillStyle = "#050508";
       ctx.fillRect(0, 0, w, h);
 
-      // --- Gauge region (upper square, not a round bezel product) ---
-      const gx = 0;
-      const gy = 0;
-      const gw = w;
-      const gh = L.gaugeH;
-
-      // Soft square panel
-      ctx.fillStyle = "#0a0a0e";
-      ctx.fillRect(gx, gy, gw, gh);
-
-      // Arc centered in upper region, using most of the width
-      const cx = gw / 2;
-      const cy = gh * 0.48;
-      const outerR = Math.min(gw, gh) * 0.42;
-      const innerR = outerR * 0.76;
-
-      // Square inset frame (device is square — show corners, not fake round housing)
-      ctx.strokeStyle = "#1c1c22";
-      ctx.lineWidth = 2;
-      ctx.strokeRect(8, 8, gw - 16, gh - 16);
-
-      const startDeg = 210; // open bottom for label / breathing room above buttons
-      const sweepDeg = 240;
+      const { cx, cy, outerR } = L;
+      const innerR = outerR * 0.78;
+      // Nearly full circle; leave a bottom gap so digits / buttons stay clear
+      const startDeg = 225;
+      const sweepDeg = 270;
       const n = SEGMENT_COUNT;
       const litSet = new Set(state.litIndices);
 
@@ -250,13 +213,13 @@
       for (let i = 0; i < n; i++) {
         const a0 = (startDeg - (i / n) * sweepDeg) * Math.PI / 180;
         const a1 = (startDeg - ((i + 1) / n) * sweepDeg) * Math.PI / 180;
-        const gap = 0.012;
+        const gap = 0.01;
         const aa0 = a0 - gap;
         const aa1 = a1 + gap;
         ctx.beginPath();
         const [x0o, y0o] = pt(outerR, aa0);
         ctx.moveTo(x0o, y0o);
-        const steps = 5;
+        const steps = 6;
         for (let s = 1; s <= steps; s++) {
           const t = s / steps;
           const a = aa0 + (aa1 - aa0) * t;
@@ -275,51 +238,40 @@
         ctx.fill();
       }
 
-      // Scale marks
-      ctx.fillStyle = "#777";
-      ctx.font = `${Math.max(11, Math.round(gw * 0.035))}px Segoe UI, sans-serif`;
+      // Scale marks inside the ring
+      ctx.fillStyle = "#888";
+      ctx.font = `${Math.max(12, Math.round(w * 0.038))}px Segoe UI, sans-serif`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       for (const mark of [8, 11, 13, 15, 17, 20]) {
         const t = (mark - AFR_MIN) / (AFR_MAX - AFR_MIN);
         const a = (startDeg - t * sweepDeg) * Math.PI / 180;
-        const r = innerR - Math.round(gw * 0.055);
+        const r = innerR - Math.round(w * 0.055);
         const [x, y] = pt(r, a);
         ctx.fillText(String(mark), x, y);
       }
 
-      // Large center readout
+      // Center readout
       const readout = state.valid ? state.display.toFixed(1) : "--.-";
-      const digitPx = Math.round(gw * 0.18);
+      const digitPx = Math.round(w * 0.20);
       ctx.fillStyle = "#ff2a2a";
       ctx.font = `bold ${digitPx}px Consolas, ui-monospace, monospace`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.shadowColor = "rgba(255,40,40,0.4)";
       ctx.shadowBlur = 10;
-      ctx.fillText(readout, cx, cy + gh * 0.02);
+      ctx.fillText(readout, cx, cy * 0.95);
       ctx.shadowBlur = 0;
 
       ctx.fillStyle = "#b8b8c0";
-      ctx.font = `600 ${Math.max(11, Math.round(gw * 0.038))}px Segoe UI, sans-serif`;
-      ctx.fillText("AIR/FUEL RATIO", cx, cy + digitPx * 0.55);
+      ctx.font = `600 ${Math.max(12, Math.round(w * 0.042))}px Segoe UI, sans-serif`;
+      ctx.fillText("AIR/FUEL RATIO", cx, cy * 0.95 + digitPx * 0.55);
 
-      // Mode chip under readout
-      ctx.fillStyle = "#3a4a60";
-      ctx.font = `600 ${Math.max(10, Math.round(gw * 0.032))}px Segoe UI, sans-serif`;
-      ctx.fillText(MODES[modeIdx], cx, cy + digitPx * 0.82);
-
-      // --- Bottom touch bar (fat MODE / SEL) ---
-      ctx.fillStyle = "#0e0e12";
-      ctx.fillRect(0, L.gaugeH, w, L.stripH);
-      ctx.strokeStyle = "#222";
-      ctx.beginPath();
-      ctx.moveTo(0, L.gaugeH + 0.5);
-      ctx.lineTo(w, L.gaugeH + 0.5);
-      ctx.stroke();
-
-      drawButton(ctx, L.mode, "MODE", MODES[modeIdx], false);
-      drawButton(ctx, L.sel, "SEL", selHold ? "HOLD" : "TAP", selHold);
+      // MODE / SEL — flush left, right, bottom; only the title on each button
+      ctx.fillStyle = "#0a0a0c";
+      ctx.fillRect(0, L.mode.y, w, L.stripH);
+      drawButton(ctx, L.mode, "MODE", false);
+      drawButton(ctx, L.sel, "SEL", selHold);
     }
 
     const canvas = document.getElementById("gauge");

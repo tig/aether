@@ -39,8 +39,8 @@ Reference visual: commercial 52 mm digital wideband (arc LEDs + 7-segment-style 
 | Color bands | **Green** near stoich / slightly rich-good; **amber** transition; **red** at rich and lean extremes |
 | Center | Large **one-decimal** numeric AFR |
 | Label | **AIR/FUEL RATIO** |
-| Face shape | **Square** panel layout — not a round 52 mm bezel clone. Arc + readout in upper region; corners of the square stay in frame |
-| MODE / SEL | **Large bottom touch bar** (~22% of face height), two equal hit targets with gap — big enough for a finger on a ~1.8″ panel (not chrome pin dots) |
+| Face shape | **Square** panel; **circular** LED arc with diameter = face width so the ring is **flush left, top, and right** |
+| MODE / SEL | Large bottom bar (~18% height), two equal hit targets flush L/R/B; labels **MODE** / **SEL** only (no LIVE/TAP subtext) |
 
 ### Color band map (shipped mockup logic)
 

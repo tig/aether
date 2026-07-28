@@ -27,14 +27,13 @@ from .afr_gauge import (
 
 # Square device-class canvas (matches mockup/gauge.html logical size).
 FACE_SIZE = 368
-BTN_STRIP_FRAC = 0.22
-BTN_GAP = 10
-BTN_MARGIN = 10
+BTN_STRIP_FRAC = 0.18
+BTN_GAP = 6
 
 
 def _segment_svg_color(band: str, lit: bool) -> str:
     if not lit:
-        return "#222226"
+        return "#1a1a1e"
     return {
         "green": "#22c55e",
         "amber": "#f59e0b",
@@ -45,60 +44,56 @@ def _segment_svg_color(band: str, lit: bool) -> str:
 
 def _layout(size: int = FACE_SIZE) -> dict:
     strip_h = round(size * BTN_STRIP_FRAC)
-    gauge_h = size - strip_h
-    btn_y = gauge_h + BTN_MARGIN
-    btn_h = strip_h - BTN_MARGIN * 2
-    btn_w = (size - BTN_MARGIN * 2 - BTN_GAP) / 2
+    btn_y = size - strip_h
+    btn_h = strip_h
+    btn_w = (size - BTN_GAP) / 2
+    outer_r = size / 2.0
     return {
         "size": size,
         "strip_h": strip_h,
-        "gauge_h": gauge_h,
+        "cx": size / 2.0,
+        "cy": outer_r,  # top of circle flush with y=0
+        "outer_r": outer_r,
         "mode": {
-            "x": BTN_MARGIN,
-            "y": btn_y,
+            "x": 0.0,
+            "y": float(btn_y),
             "w": btn_w,
-            "h": btn_h,
+            "h": float(btn_h),
             "label": "MODE",
-            "sub": "LIVE",
         },
         "sel": {
-            "x": BTN_MARGIN + btn_w + BTN_GAP,
-            "y": btn_y,
+            "x": btn_w + BTN_GAP,
+            "y": float(btn_y),
             "w": btn_w,
-            "h": btn_h,
+            "h": float(btn_h),
             "label": "SEL",
-            "sub": "TAP",
         },
     }
 
 
 def render_gauge_svg(state, size: int = FACE_SIZE) -> str:
-    """Render square-face gauge + fat MODE/SEL bar as SVG."""
+    """Square face: circular arc flush L/T/R; MODE/SEL flush bottom (no sublabels)."""
     L = _layout(size)
     w = h = size
-    gauge_h = L["gauge_h"]
-    cx = w / 2
-    cy = gauge_h * 0.48
-    outer_r = min(w, gauge_h) * 0.42
-    inner_r = outer_r * 0.76
+    cx = L["cx"]
+    cy = L["cy"]
+    outer_r = L["outer_r"]
+    inner_r = outer_r * 0.78
     n = len(state.segment_bands)
-    start_deg = 210.0
-    sweep_deg = 240.0
+    start_deg = 225.0
+    sweep_deg = 270.0
 
     parts: list[str] = [
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{w}" height="{h}" '
         f'viewBox="0 0 {w} {h}">',
         f'<rect width="100%" height="100%" fill="#050508"/>',
-        f'<rect x="0" y="0" width="{w}" height="{gauge_h}" fill="#0a0a0e"/>',
-        f'<rect x="8" y="8" width="{w - 16}" height="{gauge_h - 16}" '
-        f'fill="none" stroke="#1c1c22" stroke-width="2"/>',
     ]
 
     lit_set = set(state.lit_indices)
     for i, band in enumerate(state.segment_bands):
         a0 = math.radians(start_deg - (i / n) * sweep_deg)
         a1 = math.radians(start_deg - ((i + 1) / n) * sweep_deg)
-        gap = 0.012
+        gap = 0.01
         a0 -= gap
         a1 += gap
         x0o, y0o = cx + outer_r * math.cos(a0), cy - outer_r * math.sin(a0)
@@ -119,67 +114,44 @@ def render_gauge_svg(state, size: int = FACE_SIZE) -> str:
         x = cx + r * math.cos(ang)
         y = cy - r * math.sin(ang)
         parts.append(
-            f'<text x="{x:.1f}" y="{y:.1f}" fill="#777" font-size="{max(11, round(w * 0.035))}" '
+            f'<text x="{x:.1f}" y="{y:.1f}" fill="#888" font-size="{max(12, round(w * 0.038))}" '
             f'font-family="Segoe UI, Arial, sans-serif" text-anchor="middle" '
             f'dominant-baseline="middle">{label}</text>'
         )
 
-    digit_px = round(w * 0.18)
+    digit_px = round(w * 0.20)
     readout = state.readout()
     parts.append(
-        f'<text x="{cx}" y="{cy + gauge_h * 0.02:.1f}" fill="#ff2a2a" '
+        f'<text x="{cx}" y="{cy * 0.95:.1f}" fill="#ff2a2a" '
         f'font-size="{digit_px}" font-weight="700" '
         f'font-family="Consolas, monospace" text-anchor="middle" '
         f'dominant-baseline="middle">{readout}</text>'
     )
     parts.append(
-        f'<text x="{cx}" y="{cy + digit_px * 0.55:.1f}" fill="#b8b8c0" '
-        f'font-size="{max(11, round(w * 0.038))}" font-weight="600" '
+        f'<text x="{cx}" y="{cy * 0.95 + digit_px * 0.55:.1f}" fill="#b8b8c0" '
+        f'font-size="{max(12, round(w * 0.042))}" font-weight="600" '
         f'font-family="Segoe UI, Arial, sans-serif" text-anchor="middle">'
         f"AIR/FUEL RATIO</text>"
     )
-    parts.append(
-        f'<text x="{cx}" y="{cy + digit_px * 0.82:.1f}" fill="#3a4a60" '
-        f'font-size="{max(10, round(w * 0.032))}" font-weight="600" '
-        f'font-family="Segoe UI, Arial, sans-serif" text-anchor="middle">LIVE</text>'
-    )
 
-    # Bottom strip + fat buttons
+    # Bottom strip + flush MODE / SEL (title only)
     parts.append(
-        f'<rect x="0" y="{gauge_h}" width="{w}" height="{L["strip_h"]}" fill="#0e0e12"/>'
+        f'<rect x="0" y="{L["mode"]["y"]}" width="{w}" height="{L["strip_h"]}" fill="#0a0a0c"/>'
     )
-    parts.append(
-        f'<line x1="0" y1="{gauge_h + 0.5}" x2="{w}" y2="{gauge_h + 0.5}" '
-        f'stroke="#222" stroke-width="1"/>'
-    )
-
     for key in ("mode", "sel"):
         b = L[key]
-        title_px = max(16, round(b["h"] * 0.32))
-        sub_px = max(11, round(b["h"] * 0.20))
+        title_px = max(18, round(b["h"] * 0.42))
         parts.append(
             f'<rect x="{b["x"]:.1f}" y="{b["y"]:.1f}" width="{b["w"]:.1f}" height="{b["h"]:.1f}" '
-            f'rx="12" ry="12" fill="#18181c" stroke="#3a3a42" stroke-width="2"/>'
+            f'fill="#141418" stroke="#2e2e36" stroke-width="2"/>'
         )
         parts.append(
-            f'<text x="{b["x"] + b["w"] / 2:.1f}" y="{b["y"] + b["h"] * 0.40:.1f}" '
+            f'<text x="{b["x"] + b["w"] / 2:.1f}" y="{b["y"] + b["h"] / 2:.1f}" '
             f'fill="#eee" font-size="{title_px}" font-weight="700" '
             f'font-family="Segoe UI, Arial, sans-serif" text-anchor="middle" '
             f'dominant-baseline="middle">{b["label"]}</text>'
         )
-        parts.append(
-            f'<text x="{b["x"] + b["w"] / 2:.1f}" y="{b["y"] + b["h"] * 0.68:.1f}" '
-            f'fill="#8ab" font-size="{sub_px}" font-weight="600" '
-            f'font-family="Segoe UI, Arial, sans-serif" text-anchor="middle" '
-            f'dominant-baseline="middle">{b["sub"]}</text>'
-        )
 
-    band_label = state.band.value.upper()
-    parts.append(
-        f'<text x="{cx}" y="{h - 4}" fill="#333" font-size="9" '
-        f'font-family="Segoe UI, Arial, sans-serif" text-anchor="middle">'
-        f"band={band_label} lit={state.lit_count}/{SEGMENT_COUNT} · square face</text>"
-    )
     parts.append("</svg>")
     return "\n".join(parts)
 
@@ -205,7 +177,7 @@ def run(ticks: int = 24, out_dir: Path | None = None, seed: int = 42) -> int:
     lines = [format_state_line(i, s) for i, s in enumerate(states)]
     report = "\n".join(lines) + "\n"
 
-    print("Aether AFR gauge mockup (simulated data, square face)")
+    print("Aether AFR gauge mockup (simulated data, square face / circular gauge)")
     print(
         f"scale={AFR_MIN}–{AFR_MAX}  segments={SEGMENT_COUNT}  "
         f"face={FACE_SIZE}×{FACE_SIZE}  ticks={ticks}  seed={seed}"
@@ -245,7 +217,7 @@ def run(ticks: int = 24, out_dir: Path | None = None, seed: int = 42) -> int:
     print(f"wrote {svg_path}")
     print(f"wrote {json_path}")
     print(f"wrote {report_path}")
-    print("graphical UI: open mockup/gauge.html (square face + fat MODE/SEL)")
+    print("graphical UI: open mockup/gauge.html (flush L/T/R circle + MODE/SEL)")
     return 0
 
 
