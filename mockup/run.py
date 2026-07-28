@@ -38,10 +38,10 @@ AUX_FRAC = 0.30
 SWIPE_DOTS_Y_FROM_BOTTOM = 12
 BAND_FRAC = 0.14 * 1.1
 PAGE_COUNT = 3
-AFR_DIGIT_OF_HALF = 0.58 * 1.5 * 1.1 * 1.2 * 1.2 * 1.2
-TICK_OF_HALF = 0.16 * 1.5
-CAPTION_OF_HALF = 0.12 * 1.5
-HARD_LABEL_OF_CHROME = 0.42
+AFR_DIGIT_OF_HALF = 0.58 * 1.5 * 1.1 * 1.2 * 1.2 * 1.2 * 1.2  # value +20%
+TICK_OF_HALF = 0.16 * 1.5 * 1.35  # dial legend restored larger
+CAPTION_OF_HALF = 0.12 * 1.5 * 1.35  # value legend restored larger
+HARD_LABEL_OF_CHROME = 0.42  # banner size = absolute min face text
 
 
 def _stoich_segment_index(n: int = SEGMENT_COUNT) -> int:
@@ -262,8 +262,10 @@ def render_gauge_svg(
             parts.append(f'<polygon points="{" ".join(pts)}" fill="{color}"{stroke}/>')
 
         half = L["half"]
-        # Dial legend (+50%) sits inside the aperture, not on the LED segments.
-        label_tick = max(14, round(half * TICK_OF_HALF))
+        # Banner label size = absolute minimum for any face text.
+        min_text_px = max(16, round(TOP_CHROME * HARD_LABEL_OF_CHROME))
+        # Dial legend inside aperture (not on LED segments).
+        label_tick = max(min_text_px, round(half * TICK_OF_HALF))
         for mark, label in ((8, "8"), (11, "11"), (13, "13"), (15, "15"), (17, "17"), (20, "20")):
             t = (mark - AFR_MIN) / (AFR_MAX - AFR_MIN)
             ang = math.radians(start_deg - t * sweep_deg)
@@ -277,12 +279,12 @@ def render_gauge_svg(
                 f'text-anchor="middle" dominant-baseline="middle">{label}</text>'
             )
 
-        # Value up ~5%; tight value legend; bottoms near dial content_bot.
+        # Value (+20%); tight value legend; bottoms near dial content_bot.
         digit_px = min(
             round(half * AFR_DIGIT_OF_HALF),
-            round(min(L["inner_half_w"], L["inner_half_h"]) * 0.95),
+            round(min(L["inner_half_w"], L["inner_half_h"]) * 0.98),
         )
-        caption_px = max(11, round(half * CAPTION_OF_HALF))
+        caption_px = max(min_text_px, round(half * CAPTION_OF_HALF))
         value_gap = max(2, round(digit_px * 0.08))
         caption_bottom = L["content_bot"] - max(4.0, L["band"] * 0.35)
         caption_y = caption_bottom - caption_px
@@ -303,13 +305,13 @@ def render_gauge_svg(
             f'dominant-baseline="hanging">AIR/FUEL RATIO</text>'
         )
 
-        # Aux: RPM left, TPS right
-        mid_y = L["aux_top"] + L["aux_h"] * 0.42
-        leg_y = L["aux_top"] + L["aux_h"] * 0.72
+        # Aux: RPM left, TPS right; legends flush to bottom; numbers +20%.
         left_x = w * 0.28
         right_x = w * 0.72
-        num_px = max(18, round(L["aux_h"] * 0.36))
-        leg_px = max(11, round(L["aux_h"] * 0.18))
+        leg_px = min_text_px
+        num_px = max(min_text_px, round(L["aux_h"] * 0.36 * 1.2))
+        leg_baseline = h - 4
+        mid_y = L["aux_top"] + (leg_baseline - leg_px - L["aux_top"]) * 0.48
         parts.append(
             f'<text x="{left_x:.1f}" y="{mid_y:.1f}" fill="#f0f0f4" '
             f'font-size="{num_px}" font-weight="700" '
@@ -323,16 +325,16 @@ def render_gauge_svg(
             f'dominant-baseline="middle">{format_tps(tps)}</text>'
         )
         parts.append(
-            f'<text x="{left_x:.1f}" y="{leg_y:.1f}" fill="#9a9aa8" '
+            f'<text x="{left_x:.1f}" y="{leg_baseline}" fill="#b0b0bc" '
             f'font-size="{leg_px}" font-weight="600" '
             f'font-family="Segoe UI, Arial, sans-serif" text-anchor="middle" '
-            f'dominant-baseline="middle">RPM</text>'
+            f'dominant-baseline="auto">RPM</text>'
         )
         parts.append(
-            f'<text x="{right_x:.1f}" y="{leg_y:.1f}" fill="#9a9aa8" '
+            f'<text x="{right_x:.1f}" y="{leg_baseline}" fill="#b0b0bc" '
             f'font-size="{leg_px}" font-weight="600" '
             f'font-family="Segoe UI, Arial, sans-serif" text-anchor="middle" '
-            f'dominant-baseline="middle">TPS</text>'
+            f'dominant-baseline="auto">TPS</text>'
         )
     else:
         title = "MONITOR" if page == 1 else "LOGGER"

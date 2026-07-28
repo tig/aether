@@ -115,10 +115,11 @@
     const SWIPE_DOTS_Y_FROM_BOTTOM = 12;
     const BAND_FRAC = 0.14 * 1.1;
     const PAGE_COUNT = 3;
-    const AFR_DIGIT_OF_HALF = 0.58 * 1.5 * 1.1 * 1.2 * 1.2 * 1.2;
-    const TICK_OF_HALF = 0.16 * 1.5;
-    const CAPTION_OF_HALF = 0.12 * 1.5;
-    const HARD_LABEL_OF_CHROME = 0.42;
+    // Value +20%; dial legend + value legend restored larger; aux numbers +20%.
+    const AFR_DIGIT_OF_HALF = 0.58 * 1.5 * 1.1 * 1.2 * 1.2 * 1.2 * 1.2;
+    const TICK_OF_HALF = 0.16 * 1.5 * 1.35;       // dial legend (was too small)
+    const CAPTION_OF_HALF = 0.12 * 1.5 * 1.35;    // value legend (was too small)
+    const HARD_LABEL_OF_CHROME = 0.42;            // banner = absolute min face text size
     const BANNER_BG = "#1a2433";
     const BANNER_EDGE = "#2a3a52";
 
@@ -423,7 +424,8 @@
 
       // Type sized from dial aperture half. Dial legend sits *inside* the hole.
       const half = L.half;
-      const labelPx = Math.max(14, Math.round(half * TICK_OF_HALF));
+      const minTextPx = Math.max(16, Math.round(TOP_CHROME * HARD_LABEL_OF_CHROME));
+      const labelPx = Math.max(minTextPx, Math.round(half * TICK_OF_HALF));
       ctx.fillStyle = "#d0d0d8";
       ctx.font = `600 ${labelPx}px Segoe UI, system-ui, sans-serif`;
       ctx.textAlign = "center";
@@ -444,14 +446,13 @@
         Math.round(half * AFR_DIGIT_OF_HALF),
         Math.round(Math.min(L.innerHalfW, L.innerHalfH) * 0.95)
       );
-      const captionPx = Math.max(11, Math.round(half * CAPTION_OF_HALF));
+      const captionPx = Math.max(minTextPx, Math.round(half * CAPTION_OF_HALF));
       const valueGap = Math.max(2, Math.round(digitPx * 0.08)); // tight under value
-      const blockH = digitPx + valueGap + captionPx;
       // Sit in lower dial aperture: legend bottom near contentBot / dial bottom.
       const captionBottom = L.contentBot - Math.max(4, L.band * 0.35);
       const captionY = captionBottom - captionPx;
       const digitY = captionY - valueGap - digitPx / 2;
-      // Move value up 5% of aperture from a pure bottom-hug if needed.
+      // Slight lift so value is not jammed into corners.
       const up = Math.min(L.innerHalfH, half) * 0.05;
       const digitYAdj = digitY - up;
       const captionYAdj = captionY - up;
@@ -471,14 +472,17 @@
       ctx.fillText("AIR/FUEL RATIO", cx, captionYAdj);
     }
 
-    /** Aux strip: RPM (left) and TPS (right), each with legend below. */
+    /** Aux strip: RPM (left) and TPS (right); legends flush to face bottom. */
     function drawAuxReadouts(ctx, L, rpm, tps) {
-      const midY = L.auxTop + L.auxH * 0.42;
-      const legY = L.auxTop + L.auxH * 0.72;
       const leftX = L.w * 0.28;
       const rightX = L.w * 0.72;
-      const numPx = Math.max(18, Math.round(L.auxH * 0.36));
-      const legPx = Math.max(11, Math.round(L.auxH * 0.18));
+      // Banner label size is the floor for any face text (product legibility rule).
+      const minTextPx = Math.max(16, Math.round(TOP_CHROME * HARD_LABEL_OF_CHROME));
+      const legPx = minTextPx;
+      const numPx = Math.max(minTextPx, Math.round(L.auxH * 0.36 * 1.2)); // +20%
+      // Legends flush against bottom (above a tiny pad for swipe dots).
+      const legBaseline = L.h - 4;
+      const midY = L.auxTop + (legBaseline - legPx - L.auxTop) * 0.48;
 
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
@@ -487,10 +491,11 @@
       ctx.fillText(String(rpm), leftX, midY);
       ctx.fillText(formatTps(tps), rightX, midY);
 
-      ctx.fillStyle = "#9a9aa8";
+      ctx.fillStyle = "#b0b0bc";
       ctx.font = `600 ${legPx}px Segoe UI, system-ui, sans-serif`;
-      ctx.fillText("RPM", leftX, legY);
-      ctx.fillText("TPS", rightX, legY);
+      ctx.textBaseline = "bottom";
+      ctx.fillText("RPM", leftX, legBaseline);
+      ctx.fillText("TPS", rightX, legBaseline);
     }
 
     function drawPlaceholderPage(ctx, L, title) {

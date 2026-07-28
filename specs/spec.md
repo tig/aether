@@ -114,6 +114,15 @@ A raw AFR number is **low-value**. High-value systems turn continuous oxygen mea
 
 **Screen layout detail** for the main AFR page: [afr-face.md](afr-face.md).
 
+### 3.3.1 Legibility floor (hard rule on this device)
+
+This is a **~1.8″** face. Text that looks fine when zoomed on a desktop can be unusable in the car.
+
+- The font size used for **banner button labels** (MODE / SEL) is the **absolute minimum** allowed for **any** text or numeric label on the device face.
+- If a string cannot fit at that size without clipping, overlapping, or abbreviating into gibberish, **it does not belong on the face** — redesign the layout or drop the label. Do not “solve” it by shrinking type below the banner size.
+- Numbers that matter while driving (AFR **value**, **RPM**, **TPS**/WOT) must be **clearly larger** than that floor.
+- Always judge legibility at **physical size** (mockup ~1.8″ diagonal), not only at full-screen browser zoom.
+
 ### 3.4 Temporal features (response, history, statistics)
 
 **Hardware / controller**

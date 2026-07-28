@@ -190,16 +190,27 @@ This screen is **tiny** (≈1.8″). Type must stay **legible at physical size**
 | **Dial legend** | **Inside** the aperture (not on LED segments); 8 and 20 at bottom corners of the dial |
 | **Value** | Large; in the dial aperture; slightly **up** from a pure bottom-hug so it does not crush the corners |
 | **Value legend** | Directly under the value with a **tight** gap; bottom of this stack ≈ **bottom of the dial** |
-| **RPM** | Left of aux zone; number + **RPM** caption under it |
-| **TPS** | Right of aux zone; number or **WOT** + **TPS** caption under it |
-| **Swipe indicator** | Bottom center overlay |
+| **RPM** | Left of aux zone; number with **RPM** caption **flush to the bottom** of the face |
+| **TPS** | Right of aux zone; number or **WOT** with **TPS** caption **flush to the bottom** of the face |
+| **Swipe indicator** | Bottom center overlay (must not force RPM/TPS captions smaller than the floor) |
 
-### 6.3 TPS display on this screen
+### 6.3 Size intent and legibility floor
+
+**Product rule ([spec.md](spec.md) §3.3.1):** the font size of the **banner button labels** is the **absolute minimum** for any text or numeric label on this face. Nothing may be smaller. If a string cannot fit at that size, redesign the layout — do not shrink type.
+
+- **Value:** as large as the dial aperture allows (well above the floor); dominant.
+- **Value legend:** at least the floor size; tight under the value (must not regress to tiny footnotes).
+- **Dial legend:** at least the floor size; inside aperture (must not regress to tiny ticks).
+- **RPM / TPS numbers:** clearly larger than the floor; secondary only to the AFR value.
+- **RPM / TPS captions:** at least the floor size; flush to the bottom edge under the numbers.
+- Judge at **physical ~1.8″** size, not only when zoomed.
+
+### 6.4 TPS display on this screen
 
 - Partial throttle: integer percent (`0%` … `99%`).
 - Full throttle: **`WOT`**, not `100%`.
 
-### 6.4 Fonts
+### 6.5 Fonts
 
 - **Value** and aux numbers: bold monospaced digits.  
 - Legends and button labels: clean sans-serif.  
