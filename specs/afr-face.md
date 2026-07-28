@@ -160,7 +160,7 @@ Segment containing **14.7** stays softly highlighted when not fill-lit.
 | ≥ 15.8 | red (lean) |
 
 Each segment’s **fixed** color comes from its midpoint AFR.  
-Lit count: map clamped AFR linearly to `1 … n` segments from the rich end.  
+Lit count: map clamped AFR through the **non-linear arc map** (§6.3) to `1 … n` segments from the rich end.  
 **Value** string: one decimal, or `--.-` if invalid.
 
 See `mockup/afr_gauge.py`.
