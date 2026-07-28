@@ -20,6 +20,7 @@ from .afr_gauge import (
     AFR_STOICH,
     SEGMENT_COUNT,
     SimulatorConfig,
+    afr_to_arc_t,
     map_afr,
     simulate_stream,
     states_change,
@@ -42,10 +43,12 @@ PAGE_COUNT = 3
 AFR_DIGIT_OF_HALF = 0.58 * 1.5 * 1.1 * 1.2 * 1.2 * 1.2 * 1.2
 TICK_OF_HALF = 0.16 * 1.5 * 1.35
 CAPTION_OF_HALF = 0.12 * 1.5 * 1.35
-HARD_LABEL_OF_CHROME = 0.42  # banner size = absolute min face *label* text
+HARD_LABEL_OF_CHROME = 0.42  # banner size → label floor base
 # Value floors (device px at 448×368): must not regress smaller than these.
 PRIMARY_VALUE_MIN_PX = 82   # AFR value
 SECONDARY_VALUE_MIN_PX = 48  # RPM / TPS numbers
+# Legend floor: 25% above banner label size (do not shrink below this).
+LEGEND_MIN_SCALE = 1.25
 
 
 def _stoich_segment_index(n: int = SEGMENT_COUNT) -> int:
@@ -266,12 +269,13 @@ def render_gauge_svg(
             parts.append(f'<polygon points="{" ".join(pts)}" fill="{color}"{stroke}/>')
 
         half = L["half"]
-        # Banner label size = absolute minimum for any face text.
+        # Label floor (banner) and legend floor (25% above banner).
         min_text_px = max(16, round(TOP_CHROME * HARD_LABEL_OF_CHROME))
-        # Dial legend inside aperture (not on LED segments).
-        label_tick = max(min_text_px, round(half * TICK_OF_HALF))
+        legend_min_px = max(min_text_px, round(min_text_px * LEGEND_MIN_SCALE))
+        # Dial legend inside aperture; angles use non-linear AFR→arc map.
+        label_tick = max(legend_min_px, round(half * TICK_OF_HALF))
         for mark, label in ((8, "8"), (11, "11"), (13, "13"), (15, "15"), (17, "17"), (20, "20")):
-            t = (mark - AFR_MIN) / (AFR_MAX - AFR_MIN)
+            t = afr_to_arc_t(float(mark))
             ang = math.radians(start_deg - t * sweep_deg)
             ri = _inner_radius_at(ang, L)
             r = max(float(label_tick), ri - label_tick * 0.85)
@@ -291,7 +295,7 @@ def render_gauge_svg(
                 round(min(L["inner_half_w"], L["inner_half_h"]) * 0.98),
             ),
         )
-        caption_px = max(min_text_px, round(half * CAPTION_OF_HALF))
+        caption_px = max(legend_min_px, round(half * CAPTION_OF_HALF))
         value_gap = max(2, round(digit_px * 0.08))
         caption_bottom = L["content_bot"] - max(4.0, L["band"] * 0.35)
         caption_y = caption_bottom - caption_px
@@ -315,7 +319,7 @@ def render_gauge_svg(
         # Aux: RPM left, TPS right; legends flush to bottom; numbers +20%.
         left_x = w * 0.28
         right_x = w * 0.72
-        leg_px = min_text_px
+        leg_px = legend_min_px
         # Secondary values: never smaller than SECONDARY_VALUE_MIN_PX.
         num_px = max(
             SECONDARY_VALUE_MIN_PX,

@@ -23,6 +23,8 @@ from mockup.afr_gauge import (
     AfrSimulator,
     ColorBand,
     SimulatorConfig,
+    afr_to_arc_t,
+    arc_t_to_afr,
     band_for_afr,
     clamp_afr,
     lit_count_for_afr,
@@ -103,6 +105,19 @@ class TestSegments:
         bands = {segment_band(i) for i in range(SEGMENT_COUNT)}
         assert ColorBand.GREEN in bands
         assert ColorBand.RED in bands
+
+    def test_midrange_gets_more_arc_than_ends(self):
+        # 11 and 17 sit near corners; 11–17 owns most of the dial.
+        t11 = afr_to_arc_t(11.0)
+        t17 = afr_to_arc_t(17.0)
+        assert t11 < 0.20
+        assert t17 > 0.80
+        assert (t17 - t11) > 0.60
+        # Inverse is consistent at control points
+        assert arc_t_to_afr(0.0) == pytest.approx(8.0)
+        assert arc_t_to_afr(1.0) == pytest.approx(20.0)
+        assert arc_t_to_afr(t11) == pytest.approx(11.0)
+        assert arc_t_to_afr(t17) == pytest.approx(17.0)
 
 
 class TestMapAfr:

@@ -120,8 +120,9 @@ This is a **~1.8″** face. Text that looks fine when zoomed on a desktop can be
 
 **Label floor**
 
-- The font size used for **banner button labels** (MODE / SEL) is the **absolute minimum** allowed for **any** caption/label text on the device face (value legend, dial legend, RPM/TPS captions, etc.).
-- If a string cannot fit at that size without clipping, overlapping, or abbreviating into gibberish, **it does not belong on the face** — redesign the layout or drop the label. Do not “solve” it by shrinking type below the banner size.
+- The font size used for **banner button labels** (MODE / SEL) is the base floor for face chrome text.
+- **Legends** (value legend, dial legend, RPM/TPS captions, and any similar captions) must be **at least 25% larger** than that banner size. That larger size is the **legend minimum** — do not shrink legends below it.
+- If a string cannot fit at its required floor without clipping, overlapping, or abbreviating into gibberish, **it does not belong on the face** — redesign the layout or drop the label.
 
 **Value floors (do not regress)**
 

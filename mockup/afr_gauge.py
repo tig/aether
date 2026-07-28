@@ -26,12 +26,60 @@ BAND_GREEN_LT = 15.0  # includes stoich ~14.7
 BAND_AMBER_LT = 15.8
 # >= BAND_AMBER_LT → lean red
 
+# Non-linear arc map: expand the important midrange (11–17) so 11 and 17
+# sit near the bottom corners; compress 8–11 and 17–20 (less dial real estate).
+# Pairs are (AFR, arc_t) with arc_t in [0, 1] along the dial (0 = 8 corner, 1 = 20 corner).
+AFR_ARC_CONTROL: tuple[tuple[float, float], ...] = (
+    (8.0, 0.0),
+    (11.0, 0.14),
+    (17.0, 0.86),
+    (20.0, 1.0),
+)
+
 
 class ColorBand(str, Enum):
     GREEN = "green"
     AMBER = "amber"
     RED = "red"
     INVALID = "invalid"
+
+
+def afr_to_arc_t(afr: float) -> float:
+    """Map AFR → position along the dial arc in [0, 1] (piecewise linear)."""
+    x = clamp_afr(afr)
+    pts = AFR_ARC_CONTROL
+    if x <= pts[0][0]:
+        return pts[0][1]
+    if x >= pts[-1][0]:
+        return pts[-1][1]
+    for i in range(len(pts) - 1):
+        a0, t0 = pts[i]
+        a1, t1 = pts[i + 1]
+        if a0 <= x <= a1:
+            if a1 <= a0:
+                return t1
+            u = (x - a0) / (a1 - a0)
+            return t0 + u * (t1 - t0)
+    return pts[-1][1]
+
+
+def arc_t_to_afr(t: float) -> float:
+    """Inverse of afr_to_arc_t for segment midpoints / legend placement."""
+    u = 0.0 if t < 0.0 else 1.0 if t > 1.0 else float(t)
+    pts = AFR_ARC_CONTROL
+    if u <= pts[0][1]:
+        return pts[0][0]
+    if u >= pts[-1][1]:
+        return pts[-1][0]
+    for i in range(len(pts) - 1):
+        a0, t0 = pts[i]
+        a1, t1 = pts[i + 1]
+        if t0 <= u <= t1:
+            if t1 <= t0:
+                return a1
+            v = (u - t0) / (t1 - t0)
+            return a0 + v * (a1 - a0)
+    return pts[-1][0]
 
 
 @dataclass(frozen=True)
@@ -80,14 +128,16 @@ def band_for_afr(afr: float) -> ColorBand:
 
 
 def segment_midpoint_afr(index: int, n: int = SEGMENT_COUNT) -> float:
-    """AFR value at the midpoint of segment *index* (0 .. n-1)."""
+    """AFR value at the midpoint of segment *index* (0 .. n-1).
+
+    Segments are equal in *arc* space; AFR is non-linear (midrange expanded).
+    """
     if n < 1:
         raise ValueError("segment count must be >= 1")
     if index < 0 or index >= n:
         raise ValueError(f"segment index {index} out of range for n={n}")
-    # Segment i covers [min + i*span/n, min + (i+1)*span/n)
-    span = AFR_MAX - AFR_MIN
-    return AFR_MIN + (index + 0.5) * span / n
+    t_mid = (index + 0.5) / n
+    return arc_t_to_afr(t_mid)
 
 
 def segment_band(index: int, n: int = SEGMENT_COUNT) -> ColorBand:
@@ -101,14 +151,11 @@ def segment_band(index: int, n: int = SEGMENT_COUNT) -> ColorBand:
 def lit_count_for_afr(afr: float, n: int = SEGMENT_COUNT) -> int:
     """How many arc segments light for this AFR (needle fills low→high).
 
+    Uses non-linear arc map so midrange AFR moves the needle more.
     Out-of-range samples clamp for fill level but callers should check valid.
     """
     display = clamp_afr(afr)
-    span = AFR_MAX - AFR_MIN
-    if span <= 0:
-        return 0
-    # Map [min, max] → [1, n] so min still lights the first tick.
-    t = (display - AFR_MIN) / span
+    t = afr_to_arc_t(display)
     count = int(math.floor(t * n + 1e-9)) + 1
     if count < 1:
         return 1
