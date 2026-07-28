@@ -1,6 +1,6 @@
 # Aether logging — format & storage contract
 
-**Rev 0.3 · July 2026**  
+**Rev 0.4 · July 2026**  
 **Status:** Contract for implementation planning (not shipped firmware).  
 **Scope:** On-device log representation, channel/time/marker model, export matrix, session & naming conventions, interfaces to live bus and host pull.  
 **Not in scope:** Live serial/CAN framing ([#5](https://github.com/tig/aether/issues/5) → [inputs.md](inputs.md) when merged), map R/W ([#4](https://github.com/tig/aether/issues/4)), full on-device graphing UI, cloud sync product.
