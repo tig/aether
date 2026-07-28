@@ -15,7 +15,7 @@
 | **Speeduino** | [Speeduino wiki](https://wiki.speeduino.com/) + firmware INI in [speeduino/speeduino](https://github.com/speeduino/speeduino) |
 | **rusEFI TS binary / tunes** | [rusEFI wiki](https://wiki.rusefi.com/) + firmware `tunerstudio` sources [rusefi/rusefi](https://github.com/rusefi/rusefi) |
 | **FOME** | [https://www.fome.tech/](https://www.fome.tech/) · [wiki.fome.tech](https://wiki.fome.tech/) · [FOME-Tech/fome-fw](https://github.com/FOME-Tech/fome-fw) (TS integration, USB, INI) |
-| **LibreTune** (open TS-class host) | [LibreTune project / sources](https://github.com/LibreTune) (INI + MSQ + serial for Speeduino/rusEFI/FOME class) |
+| **LibreTune** (open TS-class host) | [RallyPat/LibreTune](https://github.com/RallyPat/LibreTune) (GPL-2.0; INI + MSQ + serial for Speeduino/rusEFI/FOME) — see §13 |
 | **MLVLG logs** (context for #3, not maps) | [MLG Binary Log Format 2.0 PDF](http://www.efianalytics.com/TunerStudio/docs/MLG_Binary_LogFormat_2.0.pdf) |
 
 ---
@@ -188,7 +188,8 @@ Do **not** invent a separate “FOME binary format” — model as **TS-class IN
 
 ## 7. LibreTune (ecosystem proof)
 
-Open-source TS-compatible tuner (Rust/Tauri): Speeduino, rusEFI, FOME, epicEFI, partial MS2/MS3.
+Open-source TS-compatible tuner (Rust/Tauri): Speeduino, rusEFI, FOME, epicEFI, partial MS2/MS3.  
+**License: GPL-2.0** — excellent **reference / gold-test peer**, **not** a linkable dependency for non-GPL Aether code. Source: [RallyPat/LibreTune](https://github.com/RallyPat/LibreTune). Modular core (`libretune-core`: `ini/`, `tune/`, `protocol/`, `ecu/`, `table_ops/`) is the best extractable *design* for a clean-room host binder.
 
 Relevant ideas (not requirements):
 
@@ -197,7 +198,7 @@ Relevant ideas (not requirements):
 - CSV import/export  
 - AutoTune against AFR targets  
 
-Validates that **INI + page protocol + structured tables** is implementable outside EFI Analytics’ closed app. Aether should remain a **monitor/logger/bridge + safe patch path**, not a LibreTune clone on a 1.8″ screen.
+Validates that **INI + page protocol + structured tables** is implementable outside EFI Analytics’ closed app. Aether should remain a **monitor/logger/bridge + safe patch path**, not a LibreTune clone on a 1.8″ screen. Full OSS inventory: §13.
 
 ---
 
@@ -258,17 +259,150 @@ What fails:
 | Agent format | **AMP JSON + MapPatch** |
 | Ecosystem file | **MSQ + INI** |
 | On-wire | Native TS-class pages |
-| Pilot | **Speeduino** |
-| Next families | rusEFI / FOME |
+| Pilot | **FOME** |
+| Secondary / sim | Speeduino |
+| Peer family | rusEFI |
 
 ---
 
-## 13. References (non-exhaustive)
+## 13. OSS leverage map (host + metal)
+
+Survey of **existing open-source** code Aether can use, study, or must avoid linking. Product recommendations live in [`specs/maps.md` §16](../../specs/maps.md). Prefer **permissive** (MIT / Apache-2.0 / BSD / ISC / Zlib) for static link into Aether firmware or host libs; **GPL** is fine as a **separate process / reference / gold-test** peer, not as a linked dependency of non-GPL product code.
+
+### 13.1 License policy (Aether map stack)
+
+| Layer | Preference | Rationale |
+|-------|------------|-----------|
+| **Metal (ESP32-S3 / ESP-IDF / C)** | **Permissive only** for static link | Firmware binary must stay free of GPL viral terms unless the whole product is re-licensed GPL |
+| **Host libraries** (in-process) | Permissive preferred | Same clean story for packaging and future dual-license |
+| **Host CLI / sidecar** | **GPL OK** if separate process | e.g. shell out to a GPL tool for golden MSQ compare |
+| **Reference only** | Any OSS license | Read algorithms / fixtures; **clean-room** reimplementation under Aether license |
+| **Proprietary** | **Do not reuse** code or claimed proprietary algorithms | TunerStudio binaries, VE Analyze internals, EFI Analytics cloud SOAP |
+
+**Viral licenses called out:** GPL-2.0, GPL-3.0 (including rusEFI/FOME “GPL-3 + additional terms”), and AGPL — **do not static-link** into metal or non-GPL host. Dynamic process isolation + no derivative work is the safe pattern.
+
+### 13.2 Candidate inventory
+
+Each row: **name · URL · SPDX · language · host/metal fit · maturity · integration cost · gaps**.
+
+#### A. Full TS-class host apps (reference / peer, not link)
+
+| Name | URL | SPDX | Lang | Fit | Maturity | Cost | Gaps / notes |
+|------|-----|------|------|-----|----------|------|--------------|
+| **LibreTune** | [github.com/RallyPat/LibreTune](https://github.com/RallyPat/LibreTune) | **GPL-2.0** | Rust + TS (Tauri) | **Host reference** — modular `libretune-core`: `ini/`, `tune/` (MSQ), `protocol/`, `ecu/`, `table_ops/` | Early but active (2026 nightlies); Speeduino/rusEFI/**FOME**/epicEFI | **High if forked as product**; **Low as gold reference** | **Cannot link** into non-GPL Aether. Not a published crates.io lib. No AMP/MapPatch. Full desktop tuner — out of Aether device scope. **Best OSS proof** of INI+MSQ+serial outside TS. |
+| **MegaTunix** | [github.com/djandruczyk/MegaTunix](https://github.com/djandruczyk/MegaTunix) · SF | **GPL-2.0** | C (GTK) | Historical host reference for MS serial | **Legacy / stalled**; modern MS firmware support incomplete | High (old GTK, incomplete modern INI) | Do not base new work; useful only for archaeology of page R/W |
+| **msqur** | [github.com/nearwood/msqur](https://github.com/nearwood/msqur) · [msqur.com](https://msqur.com) | **GPL-3.0** | PHP + JS | **Host reference** for MSQ XML + INI display | Mature enough for MS1–MS3 / Speeduino / rusEFI **viewing** | Med as read-path study | View-only web app; not a library; GPL-3; write path weak |
+| **TunerStudio** | [tunerstudio.com](https://www.tunerstudio.com/) | **Proprietary** | Java | Interop **target** only | Dominant commercial host | N/A — **cannot reuse** | Closed: UI, autotune algorithms, cloud SOAP, binary. **Public** piece: *ECU Definition File Specification* (INI). MSQ is TS project XML — document behavior, don’t copy closed code. |
+
+#### B. ECU firmwares / protocol sources (metal + definition packs)
+
+| Name | URL | SPDX | Lang | Fit | Maturity | Cost | Gaps / notes |
+|------|-----|------|------|-----|----------|------|--------------|
+| **FOME** (`fome-fw`) | [github.com/FOME-Tech/fome-fw](https://github.com/FOME-Tech/fome-fw) | **GPL-3.0 + additional terms** (rusEFI-lineage; GitHub `NOASSERTION`) | C++ firmware + Java console/tools | **Pilot ECU** — protocol **behavior** + **INI packs** as data; console as host peer | Production open ECU; active | **Low as black-box ECU**; **High if linking firmware** | **Do not static-link** firmware or Java console into Aether. Study `tunerstudio` path + shipped INI. Same family as rusEFI for page R/W. Redistributing INI files: treat as GPL-adjacent data — record provenance (open Q8 in product spec). |
+| **rusEFI** | [github.com/rusefi/rusefi](https://github.com/rusefi/rusefi) | **GPL-3.0 + additional terms** (off-road / non-aircraft caveats; GitHub `NOASSERTION`) | C++ + Java (`java_console`, `java_tools`) | Peer family; **TS binary protocol** in `firmware/.../tunerstudio*`; console for diagnostics | Very mature | Same as FOME | Viral for link. Excellent **protocol reference** and **definition delivery** (USB mass-storage INI). Additional terms are product-use caveats, not a permissive grant. |
+| **Speeduino** | [github.com/speeduino/speeduino](https://github.com/speeduino/speeduino) | **GPL-2.0** | C++ (Arduino) | **Sim / secondary metal**; simpler page surface | Mature community ECU | Low as sim target | GPL firmware — don’t link. INI in tree is definition data for host bind. Secondary after FOME pilot. |
+| **TS_lib** | [github.com/filipporaciti/TS_lib](https://github.com/filipporaciti/TS_lib) | **MIT** | C++ (Arduino) | **Metal-adjacent** — ECU-side TS protocol helper | Small / niche | Low to read | Helps **ECU implementers**, not host INI/MSQ. May inform framing only; not FOME/rusEFI complete. |
+| **speeduino-serial-sim** | [github.com/askrejans/speeduino-serial-sim](https://github.com/askrejans/speeduino-serial-sim) | **MIT** | (see repo) | **Host/metal test harness** — Speeduino protocol v2 (framed CRC32 + legacy) | Useful for CI sim | Low | Speeduino-only; not FOME. Great for #5 protocol tests on secondary path. |
+
+#### C. INI / MSQ “libraries” (extractability reality)
+
+| Name | URL | SPDX | Lang | Fit | Maturity | Cost | Gaps / notes |
+|------|-----|------|------|-----|----------|------|--------------|
+| **LibreTune `ini` + `tune` modules** | inside LibreTune | **GPL-2.0** | Rust | **Best structured OSS INI/MSQ engine** in the wild | Coupled to LibreTune app | High (license + API not packaged) | **Not** a standalone crate. Options: (1) **reference for clean-room**, (2) GPL **sidecar** process, (3) relicense negotiation (unlikely). **Must not** copy into MIT/Apache Aether tree without GPL whole-work. |
+| **msqur PHP MSQ/INI parse** | nearwood/msqur `src/` | **GPL-3.0** | PHP | Reference for XML constant trees | Web-app quality | High to port | Not embeddable in ESP or preferred host lang without rewrite |
+| **Python `configparser`** | stdlib | PSF | Python | **Unsuitable** as ECU INI engine | N/A | — | ECU definitions are a **domain language** (typed constants, pages, TableEditor, expressions) — not Windows INI. Use only for trivial key dumps, never as the binder. |
+| **General XML (lxml / ElementTree)** | various | MIT / PSF | Python | **Host plumbing** for MSQ XML DOM | Mature | Low | Need Aether schema of MSQ elements; XML libs don’t know “constant meaning” |
+| **RomRaider** | [github.com/RomRaider/RomRaider](https://github.com/RomRaider/RomRaider) | **GPL-2.0** | Java | **Out of ecosystem** (Subaru/OEM ROM defs) | Mature for OEM | High / wrong stack | Different problem (ROM tables, checksums). Note only; not TS page path. |
+
+**Finding:** there is **no permissive, production-grade, standalone “ECU INI + MSQ” library**. Aether **must build** the host binder (or accept a GPL sidecar). LibreTune is the primary **behavioral oracle**.
+
+#### D. Patch / schema / serialization (host + optional metal)
+
+| Name | URL | SPDX | Lang | Fit | Maturity | Cost | Gaps / notes |
+|------|-----|------|------|-----|----------|------|--------------|
+| **python-json-patch** (RFC 6902) | [github.com/stefankoegl/python-json-patch](https://github.com/stefankoegl/python-json-patch) | **BSD-3-Clause** | Python | Host **structural** AMP document patch / test diffs | Mature | Low | **Not a substitute for MapPatch.** MapPatch ops are table-region/domain (`scale_region`, `set_cells`). Use RFC6902 for whole-AMP merge tests or host tool internals only. |
+| **jsonschema** | [github.com/python-jsonschema/jsonschema](https://github.com/python-jsonschema/jsonschema) | **MIT** | Python | **AMP / MapPatch schema validation** on host | Mature | Low | Ship `amp.schema.json`; CI validate fixtures |
+| **Strategic merge / JSON Merge Patch (RFC 7396)** | various | usually permissive | multi | Weak fit | — | — | Merge patch lacks region math; agents need explicit ops + clamps |
+| **cJSON** | [github.com/DaveGamble/cJSON](https://github.com/DaveGamble/cJSON) · ESP component `espressif/cjson` | **MIT** | C | **Metal** AMP subset parse if JSON over USB/Wi-Fi | Mature; ESP-IDF registry | Low | Prefer host-heavy AMP; metal holds compact tables + hashes |
+| **nanopb** | [github.com/nanopb/nanopb](https://github.com/nanopb/nanopb) | **Zlib** | C | Metal binary schema if AMP ever goes binary | Mature embedded | Med | **Not justified for P0–P2.** ATM/AMP stay JSON on host; metal uses definition-bound page bytes |
+| **FlatBuffers** | [github.com/google/flatbuffers](https://github.com/google/flatbuffers) | **Apache-2.0** | multi | Same as nanopb — optional later | Mature | Med–High | Overkill until wireless AMP bandwidth proves painful |
+
+#### E. Protocol / serial helpers
+
+| Name | URL | SPDX | Notes |
+|------|-----|------|-------|
+| **MS newserial docs** | Megasquirt serial protocol PDF (community mirrors) | Documentation | Canonical command set `r`/`w`/`b` + CRC envelope — **implement clean-room** |
+| **Speeduino / FOME / rusEFI sources** | respective firmwares | GPL-* | **Behavior reference only** for host/metal client; do not copy GPL into Aether tree |
+| **LibreTune `protocol`** | RallyPat/LibreTune | GPL-2.0 | Best host-side multi-family client reference |
+| **ESP-IDF UART / USB-Serial-JTAG** | Espressif | Apache-2.0 | Transport substrate for #5 |
+
+### 13.3 What TunerStudio cannot contribute
+
+| Item | Status |
+|------|--------|
+| Source code, UI, registered autotune algorithms | **Proprietary — no reuse** |
+| Cloud definition/registration SOAP | **Proprietary — no reuse** |
+| Published **ECU Definition File Specification** (INI) | **Use as the grammar authority** |
+| Observed MSQ XML shape via open tools | **Interop via open implementations + fixtures**, not decompilation |
+| “TS-compatible” claim | Means **speak the open protocol + INI**, not “contains TS code” |
+
+### 13.4 Host vs metal leverage summary
+
+```text
+HOST (P0 first)
+  ├── INI binder .............. BUILD (clean-room; LibreTune/msqur as oracle)
+  ├── MSQ XML R/W ............. BUILD (XML lib + Aether model; gold vs LibreTune)
+  ├── ATM / AMP / MapPatch .... BUILD (Aether IP; jsonschema + optional json-patch)
+  ├── FOME INI pack ........... SHIP subset as data (provenance + license note)
+  └── Optional GPL sidecar .... LibreTune CLI / manual compare (separate process)
+
+METAL (later; #5 shared session)
+  ├── TS page r/w/burn client . BUILD clean-room C (protocol docs + black-box ECU)
+  ├── Definition hash check ... BUILD (or host-pushed bind; metal re-validates)
+  ├── Structured table cache .. BUILD thin (active tables only; not full ATM)
+  ├── JSON (cJSON) ............ OPTIONAL for host bridge payloads
+  └── nanopb / FlatBuffers .... DEFER (not needed to ship map R/W)
+```
+
+### 13.5 Must-build list (nothing permissive exists)
+
+1. **ECU-definition-aware INI parser** — `signature`, pages, `[Constants]`, scales, `[TableEditor]` x/y/zBins.  
+2. **MSQ XML import/export** bound to a loaded definition.  
+3. **ATM ↔ pages ↔ MSQ** projection with `definition_hash` / `document_hash`.  
+4. **MapPatch** validate + dry-run + apply (domain ops, not RFC6902-only).  
+5. **TS-class serial client** (page read/write/burn + CRC + signature query) — shared with #5.  
+6. **FOME pilot fixtures** — sample INI + MSQ + golden AMP for CI.  
+7. **Safety gates** — backup-before-write, readback, explicit burn, agent confirm token.
+
+### 13.6 Recommended stack by phase (pointer)
+
+| Phase | Leverage |
+|-------|----------|
+| **P0** | Build host INI+MSQ+ATM; jsonschema; FOME INI pack; LibreTune as manual gold |
+| **P1** | Clean-room serial client to FOME; speeduino-serial-sim for secondary CI; optional cJSON |
+| **P2** | MapPatch apply path; no new OSS deps required |
+| **P3** | Host agent loop; still no GPL link |
+
+Detail: [`specs/maps.md` §16](../../specs/maps.md).
+
+---
+
+## 14. References (non-exhaustive)
 
 - EFI Analytics — ECU Definition files PDF (TunerStudio docs site)  
 - Megasquirt serial protocol PDF (msextra.com / megasquirt.co.uk doc tree)  
-- Speeduino wiki — VE table / tuning  
-- rusEFI wiki — TunerStudio project, tuning, bundles  
-- FOME wiki — fome.tech  
-- LibreTune — github.com/RallyPat/LibreTune  
+- Speeduino wiki — VE table / tuning · [speeduino/speeduino](https://github.com/speeduino/speeduino) (GPL-2.0)  
+- rusEFI wiki — TunerStudio project, tuning, bundles · [rusefi/rusefi](https://github.com/rusefi/rusefi) (GPL-3.0 + additional terms)  
+- FOME wiki — [fome.tech](https://www.fome.tech/) · [FOME-Tech/fome-fw](https://github.com/FOME-Tech/fome-fw) (GPL-3.0 + additional terms)  
+- LibreTune — [github.com/RallyPat/LibreTune](https://github.com/RallyPat/LibreTune) (GPL-2.0); architecture: `docs/architecture.md`  
+- msqur — [github.com/nearwood/msqur](https://github.com/nearwood/msqur) (GPL-3.0)  
+- MegaTunix — [github.com/djandruczyk/MegaTunix](https://github.com/djandruczyk/MegaTunix) (GPL-2.0)  
+- TS_lib — [github.com/filipporaciti/TS_lib](https://github.com/filipporaciti/TS_lib) (MIT)  
+- speeduino-serial-sim — [github.com/askrejans/speeduino-serial-sim](https://github.com/askrejans/speeduino-serial-sim) (MIT)  
+- python-json-patch — [stefankoegl/python-json-patch](https://github.com/stefankoegl/python-json-patch) (BSD-3-Clause)  
+- jsonschema — [python-jsonschema/jsonschema](https://github.com/python-jsonschema/jsonschema) (MIT)  
+- cJSON — [DaveGamble/cJSON](https://github.com/DaveGamble/cJSON) (MIT)  
+- nanopb — [nanopb/nanopb](https://github.com/nanopb/nanopb) (Zlib)  
+- FlatBuffers — [google/flatbuffers](https://github.com/google/flatbuffers) (Apache-2.0)  
+- RomRaider — [RomRaider/RomRaider](https://github.com/RomRaider/RomRaider) (GPL-2.0; OEM ROM stack — out of scope)  
 - MS TS Lite references — burn UX and project/MSQ behavior  
