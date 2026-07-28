@@ -97,8 +97,11 @@ Family names below are **decoder families**. One family can cover multiple hardw
 #### 3.2.1 TunerStudio / MegaSquirt “newserial”
 
 - **Half-duplex request/response.** ECU does **not** push realtime on serial unless polled.
-- Request: `[u16 size][payload…][u32 CRC32]`; size is big-endian and includes size+CRC per MS protocol doc (2014).
-- Response adds a **flag** byte (OK, realtime data, underrun, CRC fail, busy, …).
+- Request frame layout: `[u16 size][payload…][u32 CRC32]` (big-endian fields).
+- **`size` = payload length only** — the number of bytes in `payload…`. It **excludes** the 2-byte length prefix and the trailing 4-byte CRC32 (MegaSquirt **newserial** / MS protocol family; 2014-era doc and current TS-compatible firmwares). Advertising `len(payload)+6` is a **spec bug** and will desync the ECU.
+- CRC32 is computed over the **payload** (confirm exact coverage against the MS newserial reference during implementation golden tests; do not invent a second CRC domain).
+- Response adds a **flag** byte (OK, realtime data, underrun, CRC fail, busy, …) ahead of response payload as defined by the same family.
+- Wire total bytes for a request = `2 + size + 4`.
 - Realtime: **`A`** (full outpc) or table/`r` style reads; layout from **INI** (`ochBlockSize`, `[OutputChannels]`).
 - Identity: **`Q`** → format/signature string; **`S`** → title/version string.
 - Baud on true UART: commonly **115200 8N1** (product-dependent); on USB-CDC the “baud” is often ignored by the device stack.
@@ -212,8 +215,16 @@ USB is **P0**, not deferred behind wireless-only demos. Minimum P0 bar on the **
 
 | Profile | Role | Notes |
 |---------|------|-------|
-| **Classic SPP** | Serial port emulation | What most MS/rusEFI BT modules expose to phones/TS |
-| **BLE UART** (NUS-like) | Future / phone-centric | Not the primary ECU module story today |
+| **Classic SPP** | Serial port emulation | What most MS/rusEFI **ECU-side** BT modules (HC-05 / JDY-33 class) expose to phones/TS |
+| **BLE UART** (NUS-like) | Phone-centric / future | Possible later; **not** a drop-in for Classic SPP ECU modules |
+
+**Hardware dependency (must):** the **ESP32-S3R8** (Aether prototype / target class) has **Bluetooth LE only** — **no** Classic BR/EDR controller. Therefore:
+
+| Path | Status |
+|------|--------|
+| **On-SoC Classic SPP** | **Not available** on S3 — do not schedule as a software-only phase |
+| **P2 wireless serial** | Requires an **external Classic BT SPP module** on **UART** (or a future SoC with Classic), **or** skip Classic and use **Wi-Fi TCP serial (P3)** / USB for wireless-ish shop use |
+| **BLE-only SPP substitute** | Only if the **ECU** also speaks BLE UART — uncommon for HC-05-style stacks; treat as research, not P2 default |
 
 - Pairing PINs often `1234` / `0000` on HC modules — product UX must not assume secure pairing.
 - Bandwidth and duty cycle: treat as **lower priority / lower rate** than USB or wired UART; cap poll rate (e.g. 10–15 Hz face) to reduce drops.
@@ -236,8 +247,8 @@ Wi-Fi is excellent for **bench simulators** and shop tools; in-car RF and latenc
 |------|-----------|-------|-----------|
 | 1 | **USB** (device and/or host CDC) | **P0** | Product Type-C story; bench + tethered logging; #1 host bridge |
 | 2 | **UART / TTL** | **P0–P1** | Same framing; field install; always-on power domain |
-| 3 | **Bluetooth SPP** | **P2** | Wireless convenience; lower rate |
-| 4 | **Wi-Fi TCP serial** | **P3** | Simulators, shop, remote bench |
+| 3 | **Wi-Fi TCP serial** | **P2** (was P3) | Shop/bench wireless without Classic BT hardware; simulators |
+| 4 | **Bluetooth Classic SPP** | **P3** | **Only if** SKU includes **external Classic SPP UART module** (or non-S3 radio); not on bare ESP32-S3 |
 
 ---
 
@@ -442,8 +453,8 @@ USB host mode is the preferred **safe bench write** path later (#4); this live s
 |-------|-------------|---------------|
 | **P0 — USB + FOME on Aether prototype** | `serial_link` for **USB host CDC-ACM** (and/or device CDC) on **current Aether board**; TS framing; **FOME** signature/layout pack; canonical bus; face shows live RPM/TPS/λ from **real FOME ECU over USB** | Plug cable → live face; 10+ min soak; hot-unplug recovery; host unit tests with recorded **FOME** frames |
 | **P1 — Speeduino goldens + rusEFI packs + field UART** | Speeduino fixed och for CI/sim; broader rusEFI layouts; hardened TTL path; dual-rate face/log | Simulator CI green; second metal ECU optional |
-| **P2 — Bluetooth SPP** | Pairing profile; rate-capped poll; reconnect | In-car wireless display path |
-| **P3 — Wi-Fi TCP serial** | STA/AP profile; TCP client; optional mDNS | Bench sim + shop tool path |
+| **P2 — Wi-Fi TCP serial** | STA/AP profile; TCP client; optional mDNS; same TS framing as USB | Bench sim + shop wireless path (no Classic BT required) |
+| **P3 — Bluetooth Classic SPP** | **External** SPP module on UART (HC-05/JDY class) **or** explicit future SKU radio; pairing; rate-capped poll | In-car wireless **only when hardware exists** — **blocked** on bare S3 SoC radio |
 | **P4 — MS INI subset / scatter** | Broader MS layouts; rusEFI scatter for face-minimal reads | More ECUs without per-board C tables |
 | **Later — CAN** | §13 | Same canonical bus |
 
