@@ -45,7 +45,7 @@ Sources: Speeduino secondary serial wiki; community `comms` notes; [speeduino-se
 | Secondary serial | Dash/logger can use second port while TS uses primary |
 | Wi-Fi | Sims/tools use TCP serial (example port **5000** on one sim) |
 
-Good **P0 pilot** because of fixed layouts + simulators on ESP32.
+Good **CI / secondary** target because of fixed layouts + simulators on ESP32. **Operator P0 is FOME over USB** on the current Aether prototype (see `specs/inputs.md` rev 0.2).
 
 ---
 

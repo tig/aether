@@ -252,7 +252,7 @@ Systems that meet **must-have** and **highly valuable** items turn oxygen measur
 
 ## 7. Open questions
 
-- ~~First ECU protocol slice (OBD ISO-TP, manufacturer CAN, …)?~~ → Serial-class pilot decided in [inputs.md](inputs.md) (Speeduino / TS family over USB early; CAN deferred).
+- ~~First ECU protocol slice (OBD ISO-TP, manufacturer CAN, …)?~~ → Serial-class pilot decided in [inputs.md](inputs.md) (**FOME over USB** on Aether prototype; Speeduino sim secondary; CAN deferred).
 - Wideband front-end: which modules and how many channels on day one?
 - Logger media and export path for v1?
 - Hard-button semantics for MODE / SEL beyond banner labels?

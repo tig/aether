@@ -1,6 +1,6 @@
 # Aether inputs — live serial-class streams (display & logging)
 
-**Rev 0.1 · July 2026**  
+**Rev 0.2 · July 2026**  
 **Status:** Contract for planning and implementation handoff. Not firmware.  
 **Addresses:** [#5](https://github.com/tig/aether/issues/5) — real-time ECU data formats & serial protocols (display/logging mode).
 
@@ -16,6 +16,16 @@
 
 **Survey notes (non-normative):** [docs/research/serial-protocols.md](../docs/research/serial-protocols.md)
 
+### Operator context (drives P0)
+
+| Fact | Value |
+|------|--------|
+| **Prototype device** | Current Aether product board — ESP32-S3 1.8″ AMOLED (Type-C USB), as in [spec.md](spec.md) §2 |
+| **Pilot ECU** | **[FOME](https://www.fome.tech/)**-based (issue “FOAM” → FOME; rusEFI-lineage TS serial) |
+| **P0 product outcome** | **Plug Aether into the FOME ECU via USB** and get live display + logging channels (RPM, load, λ/AFR) without a PC in the middle |
+
+Speeduino remains a valuable **simulator / secondary** target (fixed och layouts, public sims). It is **not** the operator’s P0 metal path.
+
 ---
 
 ## 1. Scope
@@ -26,7 +36,7 @@
 2. Treat **USB** as a first-class transport — not “serial with a different connector.”
 3. Survey the protocols popular open ECUs already speak; **prefer speaking those** over inventing a new ECU protocol.
 4. Specify an **internal canonical live channel model** so the AFR face and logger do not care which ECU framing produced a sample.
-5. Give a **phased pilot** that includes USB early, then UART / BT / Wi-Fi, then a second protocol family.
+5. Give a **phased pilot** that **starts with USB + FOME on the Aether prototype**, then UART / BT / Wi-Fi, then a second dialect (Speeduino sim / broader rusEFI).
 6. Leave a clean slot for **CANbus** later without rewriting this document’s structure.
 
 ### 1.2 Non-goals
@@ -74,9 +84,9 @@ Family names below are **decoder families**. One family can cover multiple hardw
 | Family | Platforms | Session / identity | Realtime model | Framing / integrity | Definition need | USB notes | Priority |
 |--------|-----------|--------------------|----------------|---------------------|-----------------|-----------|----------|
 | **TS newserial (MS-style)** | MegaSquirt 2/3 Extra, many “TS-compatible” ECUs | `Q` / `S` / signature; plain `Q` for port scan | **Poll** only (no unsolicited broadcast on serial) | Size + payload + **CRC32** (BE); response flag | **INI** defines `ochBlockSize` + field layout | Usually RS-232 or USB–UART (FTDI/CP210x/CH340) as **device** to host | P1 full |
-| **Speeduino TS subset** | Speeduino | `F`→`002`, `Q`/`S` signature strings | Poll: legacy `A` (full dump) or framed `r` offset/len (~20 Hz typical) | Legacy raw **or** framed CRC32 | Fixed **~130 B** layout for a given firmware year; INI for TS | MCU USB-serial or external USB–UART; Wi-Fi TCP serial common in tools/sims | **P0 pilot** |
-| **rusEFI TS binary** | rusEFI boards | Signature / auto-detect INI over USB/serial/BT; plain `Q`/`t`/`T` | Poll: `O` / och get (offset+count); optional **scatter** high-speed | CRC-wrapped TS packets; multi-channel `TsChannel` | **INI** required for full field map; signature selects file | **Native USB CDC** (STM VCP) + optional TTL UART **simultaneously**; baud often irrelevant on pure CDC | **P0 family / P1 depth** |
-| **FOME** (issue “FOAM”) | FOME (rusEFI-lineage fork) | Same TS + console pattern; USB mass-storage for INI on some boards | Same TS och poll family | Same as rusEFI lineage | FOME-specific INI / signature | **USB cable first-class** for TS; COM port + bundled INI | **P1** (same decoder family as rusEFI) |
+| **FOME** (issue “FOAM”) | FOME (rusEFI-lineage; [fome.tech](https://www.fome.tech/)) | Same TS + console pattern; USB mass-storage for INI on some boards | Same TS och poll family | Same as rusEFI lineage | FOME-specific INI / signature | **USB cable first-class** for TS; COM port + bundled INI | **P0 pilot** |
+| **rusEFI TS binary** | rusEFI boards | Signature / auto-detect INI over USB/serial/BT; plain `Q`/`t`/`T` | Poll: `O` / och get (offset+count); optional **scatter** high-speed | CRC-wrapped TS packets; multi-channel `TsChannel` | **INI** required for full field map; signature selects file | **Native USB CDC** (STM VCP) + optional TTL UART **simultaneously**; baud often irrelevant on pure CDC | **P0 family** (shared decoder with FOME) |
+| **Speeduino TS subset** | Speeduino | `F`→`002`, `Q`/`S` signature strings | Poll: legacy `A` (full dump) or framed `r` offset/len (~20 Hz typical) | Legacy raw **or** framed CRC32 | Fixed **~130 B** layout for a given firmware year; INI for TS | MCU USB-serial or external USB–UART; Wi-Fi TCP serial common in tools/sims | **P1** sim / secondary metal |
 | **Legacy MS plain** | Old MS / simple dashes | Single-byte `A`/`Q`/`S` | Poll `A` → raw och, **no CRC** | None | INI or hard-coded layout | Same physical transports | Fallback only |
 | **Wideband serial modules** | Innovate LC-1/2, AEM UEGO serial, etc. | Vendor stream ID / push packets | Often **push** ~10–12 Hz | Vendor packets / checksums | Fixed vendor docs | USB–serial adapters common | P2+ (sensor, not full ECU) |
 
@@ -94,15 +104,12 @@ Family names below are **decoder families**. One family can cover multiple hardw
 - Baud on true UART: commonly **115200 8N1** (product-dependent); on USB-CDC the “baud” is often ignored by the device stack.
 - **Implication for Aether:** must own a poll scheduler, CRC validation, and an INI- or table-driven field extractor.
 
-#### 3.2.2 Speeduino
+#### 3.2.2 FOME (FOAM) — **P0 pilot**
 
-- Speaks the same **TS-compatible** world: legacy single-byte commands **and** framed v2 CRC.
-- Realtime:
-  - Legacy **`A`**: full status blob (firmware-year layout; e.g. ~**130 bytes** for recent public layouts).
-  - Framed **`r`**: offset + length into output channels (TunerStudio’s preferred continuous path).
-- Typical tool rates ~**15–20 Hz** gauges; Aether may poll higher if the ECU keeps up (product-configurable caps).
-- Secondary serial / dash ports exist on many boards for a second client without stealing the TS port.
-- **Why pilot:** public simulators (UART + Wi-Fi TCP), fixed layouts for a known firmware train, huge hobby install base.
+- Open ECU fork/lineage of the rusEFI stack; **TunerStudio + USB** are the documented day-one path ([fome.tech](https://www.fome.tech/), [wiki.fome.tech](https://wiki.fome.tech/), [FOME-Tech/fome-fw](https://github.com/FOME-Tech/fome-fw)).
+- Live data = **same TS och family** with FOME signatures and INI.
+- Treat as **rusEFI-family decoder + FOME definition pack**, not a third wire protocol.
+- **Why P0:** operator’s vehicle is FOME-based; **P0 bar is plug current Aether prototype into FOME via USB** and get face + log channels.
 
 #### 3.2.3 rusEFI
 
@@ -111,13 +118,17 @@ Family names below are **decoder families**. One family can cover multiple hardw
 - Bluetooth: **SPP serial module** (JDY-33 / HC-05 class) on the binary UART — documented as limited/slow; Wi-Fi via external UART–TCP bridges preferred for bandwidth.
 - Auto-detect of definition files when connected via USB, serial, or BT (TS project path).
 - Optional **scatter** read for sparse high-rate subsets (good model for “face channels only”).
-- **Why early family:** USB-native ECUs match Aether’s Type-C product story; same poll/CRC machinery as Speeduino/MS.
+- **Why same family as FOME:** shared poll/CRC machinery; additional signature packs after FOME is green.
 
-#### 3.2.4 FOME (FOAM)
+#### 3.2.4 Speeduino — secondary / sim
 
-- Open ECU fork/lineage of the rusEFI stack; **TunerStudio + USB** are the documented day-one path.
-- Live data = **same TS och family** with FOME signatures and INI.
-- Treat as **rusEFI-family decoder + FOME definition pack**, not a third wire protocol.
+- Speaks the same **TS-compatible** world: legacy single-byte commands **and** framed v2 CRC.
+- Realtime:
+  - Legacy **`A`**: full status blob (firmware-year layout; e.g. ~**130 bytes** for recent public layouts).
+  - Framed **`r`**: offset + length into output channels (TunerStudio’s preferred continuous path).
+- Typical tool rates ~**15–20 Hz** gauges; Aether may poll higher if the ECU keeps up (product-configurable caps).
+- Secondary serial / dash ports exist on many boards for a second client without stealing the TS port.
+- **Why not operator P0:** public simulators and fixed layouts are excellent for **CI goldens** and lab bring-up; they do not replace FOME-on-USB acceptance.
 
 #### 3.2.5 Wideband-only serial (brief)
 
@@ -181,10 +192,13 @@ The SoC has **USB-OTG** and **USB-Serial-JTAG** sharing one PHY on many modules 
 
 #### 4.1.5 USB in the phase plan
 
-USB is **P0**, not deferred behind wireless-only demos. Minimum P0 bar:
+USB is **P0**, not deferred behind wireless-only demos. Minimum P0 bar on the **current Aether prototype**:
 
-- At least one of: **USB device CDC live path** (sim/host) **or** **USB host CDC-ACM live path** (real/sim device), **plus** a UART twin using the **same decoder**.
-- Prefer landing **both** device and host paths before declaring USB “done,” if the SKU PHY allows.
+- **Must:** **USB link to a real FOME ECU** such that Aether receives live och/channels for face + logger (host CDC-ACM toward ECU as **device**, or documented adapter path if FOME exposes USB–UART).
+- **Must:** Hot-unplug recovery → face shows invalid / `NO_LINK` within ~1 s.
+- **Should:** USB device CDC path for PC sim / host bridge (#1) using the **same decoder**.
+- **Should:** UART twin with the same decoder when harness allows.
+- Prefer landing both device and host roles before declaring USB “done,” if the SKU PHY allows — **but do not block P0 on dual-role if host-to-FOME already works.**
 
 ### 4.2 UART / TTL
 
@@ -231,18 +245,21 @@ Wi-Fi is excellent for **bench simulators** and shop tools; in-car RF and latenc
 
 ### 5.1 Pilot protocol family
 
-**Primary family: TunerStudio-compatible MS / Speeduino / rusEFI serial (newserial CRC + legacy plain).**
+**Primary family: TunerStudio-compatible rusEFI / FOME / MS serial (newserial CRC + legacy plain).**
 
 | Choice | Detail |
 |--------|--------|
-| **P0 pilot ECU dialect** | **Speeduino** (known firmware train, e.g. 202x 130-byte och layout) |
-| **P0 wire protocol** | Framed CRC **`r`** (offset/length) preferred; legacy **`A`** allowed for sim/simple tools |
-| **P1 same family** | **rusEFI + FOME** with signature → INI/layout pack (full och + optional scatter) |
+| **P0 pilot ECU dialect** | **FOME** (operator vehicle; signature → FOME INI/layout pack) |
+| **P0 transport** | **USB** on the **current Aether prototype** (Type-C) ↔ FOME USB CDC or USB–UART |
+| **P0 hardware** | ESP32-S3 AMOLED board **as built today** — do not wait for a future SKU |
+| **P0 wire protocol** | TS-family CRC och poll (`O` / framed read as implemented by FOME/rusEFI lineage); plain signature/`Q`/`S` for identity |
+| **P1 same family** | Broader **rusEFI** packs; optional scatter; dual USB/UART |
+| **P1 secondary dialect** | **Speeduino** fixed och (`A` / `r`) for simulators and CI goldens |
 | **Not pilot** | Innovate/AEM-only streams as sole source (no RPM/load); proprietary closed ECUs |
 
-**Why Speeduino first:** fixed field map enables a small decoder without a full INI engine; public **serial + Wi-Fi simulators** exist; protocol is the same family as MS/rusEFI so session/framing investment carries forward.
+**Why FOME first:** it is the ECU on the car; USB is how the operator will plug the prototype in; same family as rusEFI so framing investment carries forward.
 
-**Why rusEFI/FOME immediately next:** native USB CDC, dual serial, auto-detect culture, and production-minded open ECUs — best long-term USB product path.
+**Why Speeduino next (not instead):** fixed layouts and public sims accelerate CI; they do **not** replace FOME USB P0 acceptance.
 
 ### 5.2 Adapter strategy
 
@@ -257,7 +274,7 @@ Wi-Fi is excellent for **bench simulators** and shop tools; in-car RF and latenc
                   ▼
      session (identity, keepalive, reconnect)
                   ▼
-   decoder_family (speed uino | ruse fi_fome | ms_ini | …)
+   decoder_family (fome_rusefi | speeduino | ms_ini | …)
                   ▼
         canonical live channel bus
            ┌──────┴──────┐
@@ -411,9 +428,9 @@ USB host mode is the preferred **safe bench write** path later (#4); this live s
 
 | Platform | USB | UART/TTL | BT SPP | Wi-Fi TCP | Live channels for face | Aether priority |
 |----------|-----|----------|--------|-----------|------------------------|-----------------|
-| **Speeduino** | Via USB–UART or MCU CDC | Yes (primary + often secondary) | Via BT serial adapters | Common in tools/sims | RPM, TPS, MAP, AFR/λ, CLT, IAT, batt, … | **P0 pilot** |
-| **rusEFI** | **Native CDC** (strong) | Yes, parallel to USB | Module on UART (limited) | External bridges | Full och via INI; scatter optional | **P0 family / P1** |
-| **FOME** | **Native USB** first-class | Yes (lineage) | Lineage-dependent | External | Same family as rusEFI | **P1** |
+| **FOME** | **Native USB** first-class | Yes (lineage) | Lineage-dependent | External | Same family as rusEFI | **P0 pilot** |
+| **rusEFI** | **Native CDC** (strong) | Yes, parallel to USB | Module on UART (limited) | External bridges | Full och via INI; scatter optional | **P0 family / P1 packs** |
+| **Speeduino** | Via USB–UART or MCU CDC | Yes (primary + often secondary) | Via BT serial adapters | Common in tools/sims | RPM, TPS, MAP, AFR/λ, CLT, IAT, batt, … | **P1** sim / secondary |
 | **MegaSquirt / MS3** | USB–serial adapters typical | RS-232 / TTL adapters | Common BT adapters | Third-party bridges | INI och | P1–P2 |
 | **Innovate / AEM WB** | USB–serial | RS-232 | Rare | Rare | λ/AFR only | P2 sensor merge |
 
@@ -423,8 +440,8 @@ USB host mode is the preferred **safe bench write** path later (#4); this live s
 
 | Phase | Deliverable | Exit criteria |
 |-------|-------------|---------------|
-| **P0 — USB + Speeduino pilot** | `serial_link` for **USB device CDC** and/or **USB host CDC-ACM** + **UART**; framing CRC+legacy; Speeduino decoder; canonical bus; face shows live RPM/TPS/λ from real ECU **or** certified simulator | 10+ min soak; hot-unplug recovery; host unit tests with recorded frames |
-| **P1 — Field UART + rusEFI/FOME pack** | Hardened TTL path; rusEFI/FOME signature layouts; dual-rate face/log | Second ECU family demo on USB or UART |
+| **P0 — USB + FOME on Aether prototype** | `serial_link` for **USB host CDC-ACM** (and/or device CDC) on **current Aether board**; TS framing; **FOME** signature/layout pack; canonical bus; face shows live RPM/TPS/λ from **real FOME ECU over USB** | Plug cable → live face; 10+ min soak; hot-unplug recovery; host unit tests with recorded **FOME** frames |
+| **P1 — Speeduino goldens + rusEFI packs + field UART** | Speeduino fixed och for CI/sim; broader rusEFI layouts; hardened TTL path; dual-rate face/log | Simulator CI green; second metal ECU optional |
 | **P2 — Bluetooth SPP** | Pairing profile; rate-capped poll; reconnect | In-car wireless display path |
 | **P3 — Wi-Fi TCP serial** | STA/AP profile; TCP client; optional mDNS | Bench sim + shop tool path |
 | **P4 — MS INI subset / scatter** | Broader MS layouts; rusEFI scatter for face-minimal reads | More ECUs without per-board C tables |
@@ -432,8 +449,9 @@ USB host mode is the preferred **safe bench write** path later (#4); this live s
 
 **P0 USB acceptance (must not slip):**
 
-- Document which role(s) the shipping SKU implements (host / device / both).
-- Capture at least one **.bin/.pcap-style** USB or serial trace used in CI replay.
+- **Real FOME ECU** on USB with the **current Aether prototype** shows live RPM + load + λ/AFR on the face (not sim-only).
+- Document which USB role(s) the prototype uses for that path (host / device / adapter).
+- Capture at least one **.bin/.pcap-style** FOME USB or serial trace used in CI replay.
 - Face invalid on unplug within **≤ 1 s** of link loss detection.
 
 ---
@@ -442,14 +460,14 @@ USB host mode is the preferred **safe bench write** path later (#4); this live s
 
 | Kind | What |
 |------|------|
-| **Golden frames** | Record Speeduino `A`/`r` and rusEFI och responses; replay on host tests |
-| **Simulator** | [speeduino-serial-sim](https://github.com/askrejans/speeduino-serial-sim)-class UART/TCP; rusEFI virtual simulator / TS TCP |
+| **Golden frames** | Record **FOME** och responses first; Speeduino `A`/`r` and rusEFI as secondary; replay on host tests |
+| **Simulator** | rusEFI/FOME virtual / TS TCP where available; [speeduino-serial-sim](https://github.com/askrejans/speeduino-serial-sim)-class for CI |
 | **USB device path** | PC runs simulator → Aether CDC device receives (or host PC tool feeds) |
-| **USB host path** | Aether hosts CP210x/CH340/CDC ECU or ESP CDC gadget simulating ECU |
+| **USB host path** | Aether hosts FOME CDC / CP210x/CH340 adapter |
 | **Fault injection** | Truncate frames, flip CRC, mid-stream unplug, baud mismatch |
 | **Rate tests** | Face @ 15 Hz + log @ 50 Hz without face stall |
 | **Soak** | 1 h continuous poll; sequence gaps = 0 under clean link |
-| **HIL** | Real Speeduino or rusEFI board on bench USB |
+| **HIL (P0)** | **Real FOME ECU + current Aether prototype over USB** |
 
 No production firmware is required to close **this** issue — but implementation tickets should inherit these tests.
 
@@ -457,10 +475,10 @@ No production firmware is required to close **this** issue — but implementatio
 
 ## 11. Open questions
 
-1. **SKU USB topology:** Does the production AMOLED board expose USB-OTG host on Type-C, device-only, or a mux? (Blocks host-vs-device default.)
-2. **First physical ECU in the lab:** Speeduino hardware vs rusEFI vs FOME for P0 video proof?
-3. **INI on device:** How large a layout pack fits flash before host-pushed defs (#1) are mandatory?
-4. **Secondary serial:** Prefer Speeduino secondary port so a laptop can keep TS while Aether logs?
+1. **Prototype USB topology:** On the **current** Aether Type-C board, is USB-OTG host available, device-only, or muxed with USB-Serial-JTAG? (Blocks host-vs-device default for FOME cable.)
+2. ~~First physical ECU?~~ **Resolved:** **FOME** + Aether prototype over **USB**.
+3. **INI on device:** How large a FOME layout pack fits flash before host-pushed defs (#1) are mandatory?
+4. **Secondary serial:** Prefer a second port so a laptop can keep TunerStudio while Aether logs?
 5. **Security / pairing:** Any requirement beyond default BT PINs for v1?
 6. **Power:** Is USB VBUS-powered bench mode a supported product mode for ECU+Aether?
 7. **Wideband priority:** ECU och AFR vs dedicated Innovate/AEM serial as dual-channel source for bank-to-bank ([spec.md](spec.md) §3.7)?
@@ -471,7 +489,7 @@ No production firmware is required to close **this** issue — but implementatio
 
 - [x] Written comparison of realtime serial protocols for **rusEFI**, **FOME (FOAM)**, and **Speeduino/MS TS-compatible** family  
 - [x] **USB** addressed: roles, CDC/UART bridges, enumeration, hot-plug, phase plan — not assumed identical to bare UART  
-- [x] Chosen **internal live channel model** and **pilot protocol + USB-capable transport plan**  
+- [x] Chosen **internal live channel model** and **pilot = FOME over USB on current Aether prototype**
 - [x] Explicit **display vs log** channel/rate strategy  
 - [x] **CANbus** excluded; map formats (#4) and log files (#3) only at interfaces  
 - [x] Clear handoff: phases P0–P4, architecture, tests, open questions  
