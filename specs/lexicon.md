@@ -1,7 +1,9 @@
-# Aether face lexicon
+# Aether lexicon
 
-Canonical names for the product face. Use these in agent prose, specs, and mockup
+Canonical names for product and face UI. Use these in agent prose, specs, and mockup
 code comments — do not invent nicknames.
+
+Product requirements: [spec.md](spec.md). AFR screen: [afr-face.md](afr-face.md).
 
 | Term | Meaning |
 |------|---------|

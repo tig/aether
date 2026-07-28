@@ -6,10 +6,17 @@ This repository is a product GCU (General Contact Unit) used with [Silico](https
 
 ## Status
 
-**Spec-learning mockup (this pass).** Host-runnable AFR gauge mockup with **simulated** AFR data — not live OBD/CAN, not full metal product acceptance. Use what the mockup teaches (square face, fat MODE/SEL, scale, color bands, refresh feel) to refine [spec.md](spec.md).
+**Spec-learning mockup (this pass).** Host-runnable AFR screen with **simulated** AFR, RPM, and TPS — not live OBD/CAN, not full metal product acceptance.
 
-Contract seed: [spec.md](spec.md).  
-**AFR face (reimplement from this):** [specs/afr-face.md](specs/afr-face.md) · lexicon [specs/lexicon.md](specs/lexicon.md).  
+## Specs
+
+| Document | Scope |
+|----------|--------|
+| **[specs/spec.md](specs/spec.md)** | Product requirements: mission, device, what makes AFR **useful** (context, units, logging, alarms, …) |
+| **[specs/afr-face.md](specs/afr-face.md)** | **AFR screen only** — layout, dial, type, on-screen RPM/TPS |
+| **[specs/lexicon.md](specs/lexicon.md)** | Face phrase book |
+| [spec.md](spec.md) | Short seed pointer → `specs/` |
+
 Host path: [install/README.md](install/README.md).
 
 ## Hardware
@@ -19,12 +26,13 @@ Host path: [install/README.md](install/README.md).
 | Board | ESP32-S3R8, 1.8″ AMOLED 368×448, SH8601 (QSPI), FT3168 (I2C touch), Type-C USB |
 | Class | ESP32-S3-Touch-AMOLED-1.8 (B0F242GFHK) |
 | Product role | ECU monitor / logger over serial & CANbus; real-time AFR gauge face |
+| UI orientation | Landscape **448×368** (hard buttons + USB on top) |
 
 ## AFR gauge mockup (host)
 
 ![Aether AFR face host mockup](docs/images/afr-face-mockup.gif)
 
-Simulated air–fuel ratio in **landscape** (logical **448×368**; native panel 368×448 rotated so USB + hard buttons are on top): LED **dial**, large AFR **value** with **AIR/FUEL RATIO**, live **RPM** / **TPS** (to **WOT**) below the dial. **MODE** / **SEL** are **labels** for physical keys. Logging is a **red LED** in the **banner**. **Page dots** at the bottom mean swipe left/right.
+Simulated landscape face: **dial**, large AFR **value**, **RPM** / **TPS** (to **WOT**) below, **banner** with MODE/SEL labels and logging LED, **swipe** dots. Rebuild from [specs/afr-face.md](specs/afr-face.md).
 
 ```text
 # From the aether product root (Python 3.11+)
@@ -65,9 +73,10 @@ Requires ESP-IDF. Metal product face on the AMOLED is **out of gate** for this b
 
 | Path | Role |
 |------|------|
-| `spec.md` | Product contract seed |
-| `silico.toml` | C / ESP-IDF pin, product identity |
+| `specs/spec.md` | Product requirements |
+| `specs/afr-face.md` | AFR screen contract |
+| `specs/lexicon.md` | Phrase book |
+| `mockup/` | Host AFR face mockup + unit tests |
 | `firmware/` | ESP-IDF app (plate) |
 | `host/` | C host tests |
-| `mockup/` | Host AFR gauge mockup + unit tests |
 | `install/` | Update-path notes |

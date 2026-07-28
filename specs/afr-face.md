@@ -1,67 +1,69 @@
-# Aether AFR product face — reimplementation spec
+# Aether AFR screen — face specification
 
-**Rev 0.3 · July 2026**  
-**Status:** Host mockup is the working reference for this face. Implement on metal later; do not invent a second layout. Typography is **intent-first** (§6); geometry that must stay consistent is in §4–5.
+**Rev 0.4 · July 2026**  
+**Scope:** The **AFR screen only** (layout, dial, type, on-screen RPM/TPS, banner, swipe).  
+**Not in scope here:** product-wide logging architecture, setup flows, multi-channel policy, alarms product design — see [spec.md](spec.md).
 
-This document is written so an agent with no prior session can rebuild the face.  
-Phrase book: [lexicon.md](lexicon.md). Product seed: [../spec.md](../spec.md).  
+**Status:** Host mockup is the working visual reference for this screen. Implement on metal later; do not invent a second layout in chat.
+
+Phrase book: [lexicon.md](lexicon.md).  
+Product requirements: [spec.md](spec.md).  
 Reference implementation: `mockup/` (Python mapper + SVG + HTML canvas).
 
 ---
 
-## 1. Goal (what “good” looks like)
+## 1. Goal (what this screen is for)
 
-A landscape **wideband-style AFR face** on a tiny AMOLED:
+A landscape **wideband-style AFR page** on the Aether AMOLED:
 
-- Operator reads **value** at a glance (large red digits, one decimal).
-- **Dial** segments fill low→high with green / amber / red bands; **dial legend** marks 8–20.
-- **Banner** names physical **MODE** / **SEL** and shows **logging** via a **status indicator** (no text on the LED).
-- **Swipe indicator** hints at more pages; page 0 is the AFR face.
+- Operator reads the AFR **value** at a glance.
+- **Dial** segments show mixture band (green / amber / red); **dial legend** marks 8–20.
+- **Banner** names physical **MODE** / **SEL** and shows **logging** via a LED **status indicator**.
+- **Aux readouts** show live **RPM** and **TPS** under the dial (context on the same page).
+- **Swipe indicator** hints at other pages (logging, setup, … — those pages have their own specs later).
 
 **Reference motion (host mockup):**
 
 ![Aether AFR face host mockup](../docs/images/afr-face-mockup.gif)
 
-This GIF is the visual target for layout, type, banner, dial motion, logging LED, and overall feel. Rebuild to match it; use [§11 verification](#11-host-verification-agents) after changes.
+Rebuild to match this feel and structure. After layout changes, prove with `python -m mockup.capture` and inspect the PNGs — not code-only claims.
 
-Not a pixel clone of a commercial 52 mm gauge. Not live OBD/CAN in this pass — simulated AFR is fine for host mockups.
+Not a pixel clone of a commercial 52 mm gauge. Simulated AFR/RPM/TPS is acceptable for host mockups; live sources are product-level ([spec.md](spec.md)).
 
 ---
 
-## 2. Hardware orientation
+## 2. Orientation on the chosen device
 
 | Item | Spec |
 |------|------|
-| Board class | ESP32-S3 1.8″ AMOLED (ASIN B0F242GFHK / ESP32-S3-Touch-AMOLED-1.8) |
-| Native panel pixels | **368 × 448** (portrait sensor orientation) |
-| Product UI pixels | **448 × 368** landscape |
-| Rotation rule | Hold so **USB + two hard buttons** are on the **top** edge (former “right tall side” becomes top) |
-| Hard buttons | Physical keys beside USB (PWR/BOOT-class). On-screen **MODE** / **SEL** are **labels only**, not touch targets |
+| Native panel | **368 × 448** |
+| This screen’s logical pixels | **448 × 368** landscape |
+| Rotation | USB + hard buttons on the **top** edge |
+| Hard buttons | Physical only; on-screen MODE/SEL are **button labels**, not touch targets |
 
-Host prototype: render at ~**true physical size** of the 1.8″ panel (≈ **1.391 in × 1.143 in** landscape at CSS 96 px/in), not full-window scale.
+Host prototype: ~true physical size of the 1.8″ panel (≈ 1.391 in × 1.143 in landscape at CSS 96 px/in).
 
 ---
 
-## 3. Lexicon (mandatory names)
+## 3. Lexicon (this screen)
 
-Use these exact multi-word terms. Do not invent short forms.
+Use these names; full list in [lexicon.md](lexicon.md).
 
-| Term | Role |
-|------|------|
-| **banner** | Top strip: button labels + status indicators; distinct background |
-| **dial** | Multi-segment LED ring + rounded-rect aperture |
+| Term | Role on this screen |
+|------|---------------------|
+| **banner** | Top strip: button labels + status indicators |
+| **dial** | Multi-segment LED ring + rounded aperture |
 | **button labels** | MODE (left), SEL (right) |
-| **dial legend** | 8, 11, 13, 15, 17, 20 inside the aperture |
-| **value** | Large AFR numeric (e.g. `14.7`) |
-| **value legend** | `AIR/FUEL RATIO` under the value |
-| **swipe indicator** | Page dots at bottom of face |
-| **status indicators** | Logging LED (and future LEDs) |
+| **dial legend** | 8 · 11 · 13 · 15 · 17 · 20 inside the aperture |
+| **value** | Large AFR numeric |
+| **value legend** | `AIR/FUEL RATIO` tight under the value |
+| **aux readouts** | RPM (left) and TPS (right) below the dial |
+| **swipe indicator** | Page dots at the bottom |
+| **status indicators** | Logging LED (and future LEDs) in the banner |
 
 ---
 
-## 4. Face layout (device pixels, 448×368)
-
-Coordinate origin: **top-left**. +X right, +Y down.
+## 4. Screen layout (448×368)
 
 ```
 Y=0  ┌────────────────────────────────────────────┐
@@ -72,23 +74,24 @@ Y=0  ┌────────────────────────
      │ ██               value legend         ██  │
      │ ██  8 (corner)              20 (corner)██  │  ← dial bottom ≈ value legend bottom
      ├────────────────────────────────────────────┤
-     │     RPM 1234              42% / WOT        │  ← ~30% face height: aux readouts
+     │     RPM 1234              42% / WOT        │  ← ~30% of face: aux readouts
      │      RPM                    TPS            │
-     │              ● ○ ○  swipe indicator       │  ← overlay at very bottom
+     │              ● ○ ○  swipe indicator       │  ← overlay
 Y=H  └────────────────────────────────────────────┘
 ```
 
 ### 4.1 Regions
 
-| Region | Geometry / intent |
-|--------|-------------------|
-| Face | `W=448`, `H=368` |
-| **Banner** | Top strip (~60 px): button labels + status LED |
-| **Dial** | Full width; height is everything under the banner **except** the bottom ~**30%** of the face reserved for aux readouts. Dial start/end (scale 8 and 20) sit at the **bottom of this dial region**, which should align with the bottom of the **value legend**. |
-| **Aux readouts** | Bottom ~**30%** of face height (below the dial; swipe dots overlay the bottom of this zone). **RPM** left, **TPS** right. |
-| **Swipe indicator** | Overlay near the face bottom — does not steal an extra dead strip from the dial |
+| Region | Intent |
+|--------|--------|
+| **Banner** | Top strip (~60 px at this resolution): MODE · log LED · SEL on a **distinct** background from the dial |
+| **Dial** | Full width; height is everything under the banner **except** the bottom ~**30%** of the face. Start/end of the dial (8 and 20) sit at the **bottom of the dial region**, aligned with the bottom of the **value legend**. |
+| **Aux readouts** | Bottom ~**30%** of face height: **RPM** left, **TPS** right, each with a small legend under the number |
+| **Swipe indicator** | Overlay near the face bottom; does not add an extra dead strip that shrinks the dial |
 
-### 4.2 Dial outer / inner geometry
+### 4.2 Dial geometry (structural)
+
+Center of the dial band:
 
 ```
 aux_h      ≈ 0.30 * H
@@ -102,277 +105,177 @@ outer_half_h = (dial_bot - BANNER_H) / 2
 **Constant band thickness** (mid-side width equals mid-top height):
 
 ```
-BAND_FRAC = 0.154                       # 0.14 × 1.1
+BAND_FRAC ≈ 0.154
 band = min(outer_half_w, outer_half_h) * BAND_FRAC
 inner_half_w = outer_half_w - band
 inner_half_h = outer_half_h - band
-inner_corner = min(inner_half_w, inner_half_h) * 0.253   # 0.22 × 1.15
+inner_corner ≈ 0.253 * min(inner_half_w, inner_half_h)
 ```
 
-- **Outer edge:** sharp axis-aligned rectangle (flush L/R of face; flush top of dial under banner; flush bottom of face).
-- **Inner edge:** **rounded rectangle** aperture with half-sizes above and corner radius `inner_corner`.
-- Raycast each angle from `(cx,cy)` to outer and inner boundaries to build segment polygons.
-
-Angle convention for rays (screen space):
-
-```
-x = cx + r * cos(a)
-y = cy - r * sin(a)     # a = 0 → right; a = π/2 → up
-```
-
-Outer ray length to rectangle:  
-`r = min( outer_half_w/|cos a| , outer_half_h/|sin a| )` (with care at axis zeros).  
-Inner: ray to rounded rect (flat sides + far arc of corner circles).
+- **Outer:** sharp rectangle flush L/R of the face; top under banner; bottom at `dial_bot`.
+- **Inner:** rounded rectangle aperture.
+- Raycast from `(cx, cy)` with  
+  `x = cx + r·cos(a)`, `y = cy − r·sin(a)`.
 
 ### 4.3 Dial arc (segments)
 
 | Parameter | Value |
 |-----------|--------|
-| **Segment count** | **35** (not 36) |
-| **Start** | Bottom-left **corner** of outer rect |
-| **End** | Bottom-right **corner** of outer rect |
-| **Path** | Via the **top** (long way around) |
-
-Corner angles (same convention as rays):
+| Segment count | **35** |
+| Start | Bottom-left **corner** of outer rect |
+| End | Bottom-right **corner** of outer rect |
+| Path | Via the **top** |
 
 ```
-start_deg = degrees(atan2(-outer_half_h, -outer_half_w))   # normalize to [0,360) if needed → ~214.5°
-end_deg   = degrees(atan2(-outer_half_h,  outer_half_w))   # ~-34.5°
-sweep_deg = start_deg - end_deg                            # ~249°
+start_deg = degrees(atan2(-outer_half_h, -outer_half_w))  # normalize to [0,360) if needed
+end_deg   = degrees(atan2(-outer_half_h,  outer_half_w))
+sweep_deg = start_deg - end_deg
 ```
 
-Segment `i` (`i = 0 .. 34`) spans:
+Segment `i` spans `start_deg − (i/n)·sweep` … `start_deg − ((i+1)/n)·sweep` (small angular gaps between LEDs).
 
-```
-a0 = radians(start_deg - (i / n) * sweep_deg)
-a1 = radians(start_deg - ((i + 1) / n) * sweep_deg)
-```
-
-Small angular gaps between segments (~0.012 rad) for LED separation.
-
-**Fill (needle):** light segments `0 .. lit_count-1` for rising AFR (low left → high right).  
-**Unlit segments:** still drawn — dim but **visible** on black (`#2e2e36`), not black-on-black.
+**Needle:** light indices `0 .. lit_count−1` for rising AFR.  
+**Unlit:** still drawn, dim but **visible** on black (not black-on-black).
 
 ### 4.4 Stoich mark
 
-Segment whose range contains **14.7** stays **softly highlighted** when not fill-lit (fill `#2a4a32`, optional edge `#3d6b48`).
+Segment containing **14.7** stays softly highlighted when not fill-lit.
 
 ---
 
-## 5. AFR mapping (pure logic, no display)
-
-Portable rules (see `mockup/afr_gauge.py`):
+## 5. AFR mapping (pure logic)
 
 | Symbol | Value |
 |--------|--------|
-| `AFR_MIN` | 8.0 |
-| `AFR_MAX` | 20.0 |
-| `AFR_STOICH` | 14.7 |
-| `SEGMENT_COUNT` | 35 |
-
-### 5.1 Color band of an AFR sample
+| AFR_MIN / AFR_MAX | 8.0 / 20.0 |
+| AFR_STOICH | 14.7 |
+| SEGMENT_COUNT | 35 |
 
 | Condition | Band |
 |-----------|------|
-| `afr < 8` or `afr > 20` | **invalid** |
-| `afr < 11.5` | **red** (rich) |
-| `11.5 ≤ afr < 15.0` | **green** (good / stoich) |
-| `15.0 ≤ afr < 15.8` | **amber** |
-| `afr ≥ 15.8` | **red** (lean) |
+| out of [8, 20] | invalid |
+| &lt; 11.5 | red (rich) |
+| 11.5 … 15.0 | green |
+| 15.0 … 15.8 | amber |
+| ≥ 15.8 | red (lean) |
 
-### 5.2 Fixed segment colors
+Each segment’s **fixed** color comes from its midpoint AFR.  
+Lit count: map clamped AFR linearly to `1 … n` segments from the rich end.  
+**Value** string: one decimal, or `--.-` if invalid.
 
-Each segment index `i` has a **fixed** band from its midpoint AFR:
+See `mockup/afr_gauge.py`.
 
-```
-mid = AFR_MIN + (i + 0.5) * (AFR_MAX - AFR_MIN) / n
-band = band_for_afr(mid)   # always in-range for mids
-```
-
-Lit color by band:
-
-| Band | Lit hex | Unlit |
-|------|---------|--------|
-| green | `#22c55e` | `#2e2e36` |
-| amber | `#f59e0b` | `#2e2e36` |
-| red | `#ef4444` | `#2e2e36` |
-
-### 5.3 Lit count
-
-```
-display = clamp(afr, AFR_MIN, AFR_MAX)
-t = (display - AFR_MIN) / (AFR_MAX - AFR_MIN)
-lit_count = floor(t * n) + 1     # in 1..n
-lit_indices = 0 .. lit_count-1
-```
-
-### 5.4 Value string
-
-- Valid: one decimal, e.g. `14.7`
-- Invalid: `--.-`
-- Out-of-range samples: still clamp for needle; mark invalid for readout/band
+**Lit colors (reference):** green `#22c55e`, amber `#f59e0b`, red `#ef4444`; unlit `#2e2e36`.
 
 ---
 
-## 6. Typography and placement
+## 6. Typography and placement (intent)
 
-This face is **tiny** (≈1.8″). Type must stay **legible at physical size**, not just on a zoomed desktop window. Prefer clear hierarchy over exact pixel formulas; the mockup in `mockup/` is a tuned reference, not a second contract of magic ratios.
+This screen is **tiny** (≈1.8″). Type must stay **legible at physical size**. Prefer hierarchy over magic ratios; `mockup/` is a tuned reference.
 
-### 6.1 Hierarchy (what must read first)
+### 6.1 Hierarchy
 
-1. **Value** — dominant element of the face. Largest type. Red, bold, monospace-style digits. One decimal. At physical size, a driver should read it in a glance.
-2. **Value legend** — secondary, clearly under the value, smaller than the value but still readable (`AIR/FUEL RATIO`).
-3. **Dial legend** — tertiary scale marks (8 / 11 / 13 / 15 / 17 / 20). Smaller than the value; must not fight the value for attention.
-4. **Button labels** — readable names for physical keys; live in the banner, not on the dial.
+1. **Value** — dominant.  
+2. **Value legend** — tight under the value.  
+3. **Dial legend** — tertiary scale marks.  
+4. **Aux numbers** (RPM / TPS) — clear secondary telemetry.  
+5. **Button labels** — only text that names hard keys.
 
-### 6.2 Placement intent
+### 6.2 Placement
 
-| Element | Where | Requirements |
-|---------|--------|----------------|
-| **Button labels** | **Banner**: MODE left, SEL right, vertically centered in the banner strip | Clear left/right pairing with the hard buttons above those ends of the panel. Light ink on the banner so they stay legible. |
-| **Status LED** | Banner center, between the button labels | Small round indicator only — no “LOG” text on the face. See §7. |
-| **Dial legend** | **Inside the dial aperture**, just inboard of the LED ring (not drawn on top of segments) | Sit on the same angular positions as the scale (AFR-proportional along the arc). Marks at **8, 11, 13, 15, 17, 20**. Corner marks **8** and **20** near the bottom-left and bottom-right starts of the dial. Must remain readable without covering the value. |
-| **Value** | Inside dial aperture, upper-middle | Dominant AFR number. Sit **slightly higher** than a pure mid-aperture center (~5% of aperture up from a bottom-hugging stack) so it stays clear of the dial bottom corners. |
-| **Value legend** | Directly under the value, **tight** gap | Same horizontal center; visually attached to the value. The **bottom of the value legend** should sit at the **bottom of the dial** (where the 8 / 20 corners live). |
-| **RPM aux** | Left half of the bottom ~30% zone | Large live RPM number; small **RPM** legend under it. |
-| **TPS aux** | Right half of the bottom ~30% zone | Live throttle: `0%` … `99%`, and **WOT** at full throttle; small **TPS** legend under it. |
-| **Swipe indicator** | Bottom center of the face | Overlaid on the aux zone; small page dots. |
+| Element | Requirements |
+|---------|----------------|
+| **Button labels** | Banner: MODE left, SEL right, vertically centered; light ink on banner |
+| **Status LED** | Banner center; no “LOG” text on the face |
+| **Dial legend** | **Inside** the aperture (not on LED segments); 8 and 20 at bottom corners of the dial |
+| **Value** | Large; in the dial aperture; slightly **up** from a pure bottom-hug so it does not crush the corners |
+| **Value legend** | Directly under the value with a **tight** gap; bottom of this stack ≈ **bottom of the dial** |
+| **RPM** | Left of aux zone; number + **RPM** caption under it |
+| **TPS** | Right of aux zone; number or **WOT** + **TPS** caption under it |
+| **Swipe indicator** | Bottom center overlay |
 
-### 6.3 Size intent (not magic ratios)
+### 6.3 TPS display on this screen
 
-- **Value:** as large as the (now shorter) dial aperture allows while still fitting `20.0` / `--.-` and a tight value legend without clipping into segments.
-- **Value legend:** clearly smaller than the value; tight under it; still legible at 1.8″.
-- **Dial legend:** readable; inside aperture; must not fight the value.
-- **RPM / TPS numbers:** secondary to the AFR value but clearly live telemetry — large enough to read at a glance in the bottom third.
-- **RPM / TPS legends:** small captions under those numbers (`RPM`, `TPS`).
-- **Button labels:** large enough to read in the banner at a glance.
-- Prefer **bold** for value and aux numbers; medium–semibold for legends.
-- Colors: value **strong red**; aux numbers light; legends muted gray; button labels light on the banner.
+- Partial throttle: integer percent (`0%` … `99%`).
+- Full throttle: **`WOT`**, not `100%`.
 
-### 6.4 TPS display rule
+### 6.4 Fonts
 
-- Range conceptually **0% … full throttle**.
-- Show integer percent for partial throttle (`0%` … `99%`).
-- At full throttle (≈100%), show **`WOT`** (wide-open throttle), not `100%`.
-
-If a rebuild looks wrong, fix hierarchy and collisions first — do not invent a new face by stacking more ad-hoc scale factors in the spec.
-
-### 6.5 Fonts
-
-- **Value and aux numbers:** bold monospace (or monospaced digit face) so digits stay stable as values change.
-- **Everything else:** clean sans-serif UI face.
+- **Value** and aux numbers: bold monospaced digits.  
+- Legends and button labels: clean sans-serif.  
+- Value color: strong red; legends light/muted gray; aux numbers light on black.
 
 ---
 
-## 7. Banner and status indicators
+## 7. Banner and logging LED (this screen)
 
-### 7.1 Banner chrome
-
-- A **horizontal strip across the top of the face**, tall enough for comfortable button labels and the logging LED (on the order of a sixth of face height — mockup uses 60 px at 368 tall).
-- **Visually distinct** from the dial: darker blue-slate field, not the same pure black as the dial face.
-- A subtle bottom edge (hairline) can separate banner from dial.
-- Button label ink must stay **high-contrast** on that field (light on dark).
-
-Exact hex in the mockup is a reference; the requirement is **distinct banner + legible labels**, not a brand palette freeze.
-
-### 7.2 Logging LED (status indicator)
-
-| State | Look |
-|-------|------|
-| **On** | Bright red, optional soft pulse/glow — “recording / logging active” |
-| **Off** | **Still red**, but dim (not gray or off-black) — “LED present but inactive” |
-
-Centered in the banner between the button labels. **No accompanying text** on the device face.
-
-Host prototype demo: start **off**, turn **on** after a short simulated delay (optional).
+- Banner: distinct dark blue-slate vs dial black; light MODE/SEL for contrast.  
+- Logging LED: **bright red** when on (optional pulse); **dim red** when off (still red, not gray).  
+- Host demo may start off then turn on after a short delay.
 
 ---
 
 ## 8. Swipe indicator
 
-- **3** dots (page 0 = AFR face; 1–2 placeholders OK for now)
-- Active: larger light fill `#e8e8ee`
-- Idle: smaller `#3a3a44`
-- Horizontal center; y ≈ `H - 14`
-- Drawn **on top of** the dial (no reserved dead band that shrinks the dial)
-
-Touch (host mockup): horizontal swipe changes page. Physical device: same intent later.
+Three page dots; active page brighter. Page 0 = this AFR screen. Other pages are out of scope here.
 
 ---
 
-## 9. Interaction map
+## 9. Interaction (this screen)
 
 | Input | Behavior |
 |-------|----------|
-| Physical MODE | Product-defined later (banner label only on mockup) |
-| Physical SEL | Product-defined later (banner label only on mockup) |
-| Logging | Status LED only; no “LOG” text on face |
-| Swipe L/R | Next/prev page via swipe indicator |
+| Physical MODE / SEL | Product semantics in product/setup specs; labels only on mockup |
+| Swipe L/R | Change page via swipe indicator |
+| Logging | Status LED only |
 
-Do **not** implement MODE/SEL as on-screen touch buttons in the product face.
+Do not implement MODE/SEL as on-screen touch buttons on this face.
 
 ---
 
-## 10. Layers / z-order
+## 10. Z-order
 
-1. Face black background  
-2. Dial segments (outer→inner polygons)  
+1. Face black  
+2. Dial segments  
 3. Dial legend, value, value legend  
-4. Banner rectangle + edge  
-5. Button labels + status LED  
-6. Swipe indicator  
+4. Aux RPM / TPS  
+5. Banner + edge  
+6. Button labels + status LED  
+7. Swipe indicator  
 
 ---
 
 ## 11. Host verification (agents)
 
-After any layout change:
-
 ```text
 python -m pytest mockup/tests -q
-python -m mockup.capture          # needs ImageMagick `magick`
-# Open mockup/out/preview_stoich.png (and rich/lean/log_off) and inspect visually
+python -m mockup.capture
+# Inspect mockup/out/preview_*.png
 ```
 
-Do **not** claim the face is correct from code alone.  
-HTML prototype: `mockup/gauge.html` (physical CSS size).  
-SVG twin: `python -m mockup` → `mockup/out/afr_gauge.svg`.
+### Acceptance (AFR screen)
 
-### Acceptance checklist
-
-- [ ] Landscape 448×368; banner distinct color; MODE / LED / SEL legible  
-- [ ] Dial fills width under banner; dial bottom ≈ value legend bottom; ~30% face height free below for aux  
-- [ ] 35 segments; 8 and 20 at bottom corners of the dial  
-- [ ] Mid-side band thickness equals mid-top band thickness  
-- [ ] Unlit segments visible; stoich soft-highlight when not lit  
-- [ ] Dial legend inside aperture; value dominates; value legend tight under value  
-- [ ] RPM left + TPS right in aux zone with legends; TPS uses WOT at full  
-- [ ] Type hierarchy holds at ~1.8″ physical size (not only when zoomed)  
-- [ ] Logging LED bright vs dim red  
-- [ ] Swipe dots overlaid at bottom  
-- [ ] Unit tests pass for pure AFR→segment mapping  
+- [ ] Landscape 448×368; banner distinct; MODE / LED / SEL legible  
+- [ ] Dial full width; dial bottom ≈ value legend bottom; ~30% aux below  
+- [ ] 35 segments; 8 / 20 at dial bottom corners  
+- [ ] Equal mid-side and mid-top band thickness  
+- [ ] Unlit segments visible; stoich soft-highlight  
+- [ ] Value dominates; value legend tight under it  
+- [ ] RPM left, TPS right; WOT at full throttle  
+- [ ] Swipe dots at bottom  
+- [ ] Mapping unit tests pass  
+- [ ] Visual capture inspected  
 
 ---
 
-## 12. Out of scope (this face rev)
-
-- Live CANbus / OBD / sensor input  
-- Durable trip log storage UI  
-- Full multi-page product domains (MONITOR/LOGGER are placeholders)  
-- Pixel-perfect commercial gauge chrome (MODE/SEL knobs, packaging art)  
-
----
-
-## 13. Implementation map (this repo)
+## 12. Implementation map
 
 | Concern | Owner |
 |---------|--------|
-| Pure AFR → lit segments / bands | `mockup/afr_gauge.py` |
-| Layout constants + SVG | `mockup/run.py` |
-| Interactive HTML prototype | `mockup/gauge.html` |
-| PNG capture for agents | `mockup/capture.py` |
-| Unit tests | `mockup/tests/test_afr_gauge.py` |
-| Lexicon | `specs/lexicon.md` |
-| This face contract | `specs/afr-face.md` |
-
-When porting to C / AMOLED: keep this geometry and lexicon; replace host canvas with the panel framebuffer. Do not soft-fork a second face design in chat-only recovery.
+| Pure AFR → segments | `mockup/afr_gauge.py` |
+| Layout + SVG | `mockup/run.py` |
+| HTML prototype | `mockup/gauge.html` |
+| PNG capture | `mockup/capture.py` |
+| Unit tests | `mockup/tests/` |
+| This screen contract | `specs/afr-face.md` |
+| Product requirements | `specs/spec.md` |
