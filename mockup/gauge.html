@@ -31,14 +31,21 @@
     }
     /*
      * Device panel: native 368×448. Product UI is landscape with USB + hard
-     * buttons on the TOP (rotate so former right tall edge is up) → 448×368.
+     * buttons on the TOP → logical 448×368.
+     *
+     * Scale to ~true physical size of the 1.8″ AMOLED (not full-window huge).
+     * Diagonal 1.8in; aspect 448:368 → width ≈ 1.391in, height ≈ 1.143in.
+     * CSS in/mm ≈ 96 CSS-px/in (browser reference); close on most monitors.
      */
     .device {
-      width: min(94vw, 448px);
+      /* ~true size: 1.8" diagonal → landscape width ≈ 1.391in (CSS ref 96px/in) */
+      width: 1.391in;
+      max-width: min(1.391in, 90vw);
       aspect-ratio: 448 / 368;
+      height: auto;
       background: #000;
       border: 1px solid #333;
-      box-shadow: 0 12px 40px rgba(0,0,0,0.55);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.55);
       overflow: hidden;
       position: relative;
     }
@@ -46,8 +53,15 @@
       display: block;
       width: 100%;
       height: 100%;
-      touch-action: pan-y; /* allow horizontal swipe detect ourselves */
+      touch-action: pan-y;
       cursor: default;
+      /* crisp downscale from 448×368 device pixels */
+      image-rendering: auto;
+    }
+    .size-note {
+      font-size: 0.68rem;
+      color: #555;
+      margin: 0;
     }
     .meta {
       font-family: ui-monospace, Consolas, monospace;
@@ -69,6 +83,7 @@
     Panel native 368×448; product face is <strong>landscape</strong> with hard buttons
     on the top edge (MODE / SEL are labels only). Red LED = logging. Bottom dots = swipe pages.
   </p>
+  <p class="size-note">Rendered at ~1.8″ diagonal (physical panel size), not screen-filling.</p>
   <div class="device" id="device">
     <canvas id="gauge" width="448" height="368" aria-label="Aether AFR gauge landscape 448 by 368"></canvas>
   </div>
