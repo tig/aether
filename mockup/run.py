@@ -18,6 +18,7 @@ from pathlib import Path
 from .afr_gauge import (
     AFR_MAX,
     AFR_MIN,
+    AFR_STOICH,
     SEGMENT_COUNT,
     SimulatorConfig,
     map_afr,
@@ -31,15 +32,23 @@ BTN_STRIP_FRAC = 0.18
 BTN_GAP = 6
 
 
-def _segment_svg_color(band: str, lit: bool) -> str:
-    if not lit:
-        return "#1a1a1e"
-    return {
-        "green": "#22c55e",
-        "amber": "#f59e0b",
-        "red": "#ef4444",
-        "invalid": "#444444",
-    }.get(band, "#666666")
+def _stoich_segment_index(n: int = SEGMENT_COUNT) -> int:
+    span = AFR_MAX - AFR_MIN
+    i = int(math.floor(((AFR_STOICH - AFR_MIN) / span) * n))
+    return min(n - 1, max(0, i))
+
+
+def _segment_svg_color(band: str, lit: bool, *, stoich: bool = False) -> str:
+    if lit:
+        return {
+            "green": "#22c55e",
+            "amber": "#f59e0b",
+            "red": "#ef4444",
+            "invalid": "#444444",
+        }.get(band, "#666666")
+    if stoich:
+        return "#2a4a32"  # soft stoich hint when not fill-lit
+    return "#1a1a1e"
 
 
 def _layout(size: int = FACE_SIZE) -> dict:
@@ -48,6 +57,7 @@ def _layout(size: int = FACE_SIZE) -> dict:
     btn_h = strip_h
     btn_w = (size - BTN_GAP) / 2
     half = size / 2.0
+    inner_half = half * 0.58
     return {
         "size": size,
         "strip_h": strip_h,
@@ -55,7 +65,8 @@ def _layout(size: int = FACE_SIZE) -> dict:
         "cx": half,
         "cy": half,
         "half": half,
-        "inner_r": half * 0.70,
+        "inner_half": inner_half,
+        "inner_corner": inner_half * 0.28,
         "mode": {
             "x": 0.0,
             "y": float(btn_y),
@@ -73,6 +84,36 @@ def _layout(size: int = FACE_SIZE) -> dict:
     }
 
 
+def _radius_to_rounded_square(ux: float, uy: float, half: float, corner: float) -> float:
+    """Ray length from origin to rounded square boundary (unit dir ux, uy)."""
+    ax, ay = abs(ux), abs(uy)
+    flat = half - corner
+    if flat <= 0:
+        return half
+    if ax > 1e-12:
+        t = half / ax
+        if abs(t * uy) <= flat + 1e-9:
+            return t
+    if ay > 1e-12:
+        t = half / ay
+        if abs(t * ux) <= flat + 1e-9:
+            return t
+    cx = (1.0 if ux >= 0 else -1.0) * flat
+    cy = (1.0 if uy >= 0 else -1.0) * flat
+    b = ux * cx + uy * cy
+    c = cx * cx + cy * cy - corner * corner
+    disc = b * b - c
+    if disc < 0:
+        return half
+    root = math.sqrt(disc)
+    t1, t2 = b - root, b + root
+    if t1 > 1e-9:
+        return t1
+    if t2 > 1e-9:
+        return t2
+    return half
+
+
 def _outer_radius_at(a: float, L: dict) -> float:
     """Ray from center to square L/T/R (and button-top) boundary — longer at corners."""
     dx = math.cos(a)
@@ -88,19 +129,25 @@ def _outer_radius_at(a: float, L: dict) -> float:
         r_max = min(r_max, (L["btn_y"] - cy) / dy)
     if dy < -1e-9:
         r_max = min(r_max, (0.0 - cy) / dy)
-    return max(L["inner_r"] + 4.0, r_max - 0.5)
+    return max(8.0, r_max - 0.5)
+
+
+def _inner_radius_at(a: float, L: dict) -> float:
+    ux = math.cos(a)
+    uy = -math.sin(a)
+    return _radius_to_rounded_square(ux, uy, L["inner_half"], L["inner_corner"])
 
 
 def render_gauge_svg(state, size: int = FACE_SIZE) -> str:
-    """Square face: variable-length radial segments to edges; MODE/SEL flush bottom."""
+    """Square face: rounded-square inner, variable outer; stoich tick; MODE/SEL."""
     L = _layout(size)
     w = h = size
     cx = L["cx"]
     cy = L["cy"]
-    inner_r = L["inner_r"]
     n = len(state.segment_bands)
     start_deg = 225.0
     sweep_deg = 270.0
+    stoich_i = _stoich_segment_index(n)
 
     parts: list[str] = [
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{w}" height="{h}" '
@@ -109,7 +156,7 @@ def render_gauge_svg(state, size: int = FACE_SIZE) -> str:
     ]
 
     lit_set = set(state.lit_indices)
-    steps = 8
+    steps = 10
     for i, band in enumerate(state.segment_bands):
         a0 = math.radians(start_deg - (i / n) * sweep_deg)
         a1 = math.radians(start_deg - ((i + 1) / n) * sweep_deg)
@@ -125,20 +172,28 @@ def render_gauge_svg(state, size: int = FACE_SIZE) -> str:
         for s in range(steps, -1, -1):
             t = s / steps
             a = aa0 + (aa1 - aa0) * t
-            pts.append(f"{cx + inner_r * math.cos(a):.2f},{cy - inner_r * math.sin(a):.2f}")
-        color = _segment_svg_color(band.value, i in lit_set)
-        parts.append(f'<polygon points="{" ".join(pts)}" fill="{color}"/>')
+            r = _inner_radius_at(a, L)
+            pts.append(f"{cx + r * math.cos(a):.2f},{cy - r * math.sin(a):.2f}")
+        lit = i in lit_set
+        color = _segment_svg_color(band.value, lit, stoich=(i == stoich_i))
+        stroke = (
+            f' stroke="#3d6b48" stroke-width="1.5"'
+            if (i == stoich_i and not lit)
+            else ""
+        )
+        parts.append(f'<polygon points="{" ".join(pts)}" fill="{color}"{stroke}/>')
 
+    label_px = max(18, round(w * 0.058))
     for mark, label in ((8, "8"), (11, "11"), (13, "13"), (15, "15"), (17, "17"), (20, "20")):
         t = (mark - AFR_MIN) / (AFR_MAX - AFR_MIN)
         ang = math.radians(start_deg - t * sweep_deg)
-        r = inner_r - w * 0.055
+        r = max(8.0, _inner_radius_at(ang, L) - label_px * 0.85)
         x = cx + r * math.cos(ang)
         y = cy - r * math.sin(ang)
         parts.append(
-            f'<text x="{x:.1f}" y="{y:.1f}" fill="#888" font-size="{max(12, round(w * 0.038))}" '
-            f'font-family="Segoe UI, Arial, sans-serif" text-anchor="middle" '
-            f'dominant-baseline="middle">{label}</text>'
+            f'<text x="{x:.1f}" y="{y:.1f}" fill="#c8c8d0" font-size="{label_px}" '
+            f'font-weight="600" font-family="Segoe UI, Arial, sans-serif" '
+            f'text-anchor="middle" dominant-baseline="middle">{label}</text>'
         )
 
     digit_px = round(w * 0.20)
