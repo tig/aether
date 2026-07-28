@@ -129,10 +129,10 @@ USB and wired UART usually win headroom; BT needs lower caps.
 
 ## 10. Decision snapshot (see inputs.md for normative text)
 
-1. **Family:** TunerStudio-compatible MS serial (CRC + legacy).  
-2. **P0 dialect:** Speeduino fixed layout.  
-3. **P1:** rusEFI + FOME layouts.  
-4. **Transports:** USB P0 (device and/or host) → UART → BT → Wi-Fi.  
+1. **Family:** TunerStudio-compatible MS / rusEFI / FOME serial (CRC + legacy).  
+2. **P0 dialect:** **FOME** over **USB** on the **current Aether prototype**.  
+3. **P1:** Speeduino fixed och (CI/sim) + broader rusEFI packs + field UART.  
+4. **Transports:** USB P0 (FOME cable) → UART → BT → Wi-Fi.  
 5. **Internal model:** λ-centric channels + quality + int64 ms timestamps.  
 6. **CAN:** deferred to reserved section in inputs.md.
 
