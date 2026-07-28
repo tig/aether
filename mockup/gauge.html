@@ -37,28 +37,10 @@
      * Diagonal 1.8in; aspect 448:368 → width ≈ 1.391in, height ≈ 1.143in.
      * CSS in/mm ≈ 96 CSS-px/in (browser reference); close on most monitors.
      */
-    .row {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 1.25rem;
-      align-items: flex-start;
-      justify-content: center;
-    }
-    .proto {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 0.35rem;
-    }
-    .proto figcaption {
-      font-size: 0.7rem;
-      color: #777;
-      letter-spacing: 0.04em;
-    }
     .device {
       /* ~true size: 1.8" diagonal → landscape width ≈ 1.391in (CSS ref 96px/in) */
       width: 1.391in;
-      max-width: min(1.391in, 42vw);
+      max-width: min(1.391in, 90vw);
       aspect-ratio: 448 / 368;
       height: auto;
       background: #000;
@@ -100,23 +82,12 @@
     Panel native 368×448; product face is <strong>landscape</strong> with hard buttons
     on the top edge (MODE / SEL are labels only). Red LED = logging. Bottom dots = swipe pages.
   </p>
-  <p class="size-note">Rendered at ~1.8″ diagonal (physical panel size). Both logging states shown.</p>
-  <div class="row">
-    <figure class="proto">
-      <div class="device">
-        <canvas id="gauge-log-on" width="448" height="368" aria-label="AFR gauge, logging on"></canvas>
-      </div>
-      <figcaption>status: logging ON (bright red LED)</figcaption>
-    </figure>
-    <figure class="proto">
-      <div class="device">
-        <canvas id="gauge-log-off" width="448" height="368" aria-label="AFR gauge, logging off"></canvas>
-      </div>
-      <figcaption>status: logging OFF (dim red LED)</figcaption>
-    </figure>
+  <p class="size-note">Rendered at ~1.8″ diagonal (physical panel size). Logging LED starts off, then turns on.</p>
+  <div class="device">
+    <canvas id="gauge" width="448" height="368" aria-label="Aether AFR gauge landscape 448 by 368"></canvas>
   </div>
   <div class="meta" id="meta">—</div>
-  <div class="badge">swipe left/right on either face · hard MODE/SEL only on device</div>
+  <div class="badge">swipe left/right · hard MODE/SEL only on device</div>
 
   <script>
     // Visual twin of mockup/afr_gauge.py (Python is canonical / unit-tested).
@@ -149,11 +120,11 @@
     // Band thickness as fraction of the *shorter* content half-span (+10%).
     const BAND_FRAC = 0.14 * 1.1;
     const PAGE_COUNT = 3;
-    // Type from min(inner half-axes). Value +10% on top of prior scale.
-    const AFR_DIGIT_OF_HALF = 0.58 * 1.5 * 1.1;  // value
-    const TICK_OF_HALF = 0.16 * 1.5;             // dial legend
-    const CAPTION_OF_HALF = 0.12 * 1.5;          // value legend
-    const HARD_LABEL_OF_CHROME = 0.42;           // button labels
+    // Type from min(inner half-axes). Value +20% on top of prior scale.
+    const AFR_DIGIT_OF_HALF = 0.58 * 1.5 * 1.1 * 1.2;  // value
+    const TICK_OF_HALF = 0.16 * 1.5;                   // dial legend
+    const CAPTION_OF_HALF = 0.12 * 1.5;                // value legend
+    const HARD_LABEL_OF_CHROME = 0.42;                 // button labels
 
     function clampAfr(afr) {
       return Math.min(AFR_MAX, Math.max(AFR_MIN, afr));
@@ -458,12 +429,17 @@
       }
 
       const readout = state.valid ? state.display.toFixed(1) : "--.-";
-      // Value +50%; still capped to fit "20.0" in the aperture with legend.
+      // Value (+20%); value + value legend vertically centered in the aperture.
       const digitPx = Math.min(
         Math.round(half * AFR_DIGIT_OF_HALF),
-        Math.round(Math.min(L.innerHalfW, L.innerHalfH) * 0.72)
+        Math.round(Math.min(L.innerHalfW, L.innerHalfH) * 0.78)
       );
-      const digitY = cy - digitPx * 0.12;
+      const captionPx = Math.max(12, Math.round(half * CAPTION_OF_HALF));
+      const valueGap = Math.round(digitPx * 0.18);
+      const blockH = digitPx + valueGap + captionPx;
+      const digitY = cy - blockH / 2 + digitPx / 2;
+      const captionY = digitY + digitPx / 2 + valueGap;
+
       ctx.fillStyle = "#ff2a2a";
       ctx.font = `bold ${digitPx}px Consolas, ui-monospace, monospace`;
       ctx.textAlign = "center";
@@ -473,11 +449,10 @@
       ctx.fillText(readout, cx, digitY);
       ctx.shadowBlur = 0;
 
-      const captionPx = Math.max(12, Math.round(half * CAPTION_OF_HALF));
       ctx.fillStyle = "#c0c0c8";
       ctx.font = `600 ${captionPx}px Segoe UI, system-ui, sans-serif`;
       ctx.textBaseline = "top";
-      ctx.fillText("AIR/FUEL RATIO", cx, digitY + digitPx * 0.52);
+      ctx.fillText("AIR/FUEL RATIO", cx, captionY);
     }
 
     function drawPlaceholderPage(ctx, L, title) {
@@ -500,7 +475,6 @@
       ctx.fillStyle = "#050508";
       ctx.fillRect(0, 0, w, h);
 
-      // Top chrome strip (button labels + status indicator)
       ctx.fillStyle = "#08080c";
       ctx.fillRect(0, 0, w, TOP_CHROME);
       drawHardButtonLabels(ctx, L);
@@ -517,13 +491,16 @@
       drawSwipeDots(ctx, L);
     }
 
-    const canvasOn = document.getElementById("gauge-log-on");
-    const canvasOff = document.getElementById("gauge-log-off");
-    const ctxOn = canvasOn.getContext("2d");
-    const ctxOff = canvasOff.getContext("2d");
+    const canvas = document.getElementById("gauge");
+    const ctx = canvas.getContext("2d");
     const meta = document.getElementById("meta");
 
-    function canvasPoint(canvas, clientX, clientY) {
+    // Logging starts OFF; turns ON after a short demo delay.
+    let logging = false;
+    let tickN = 0;
+    const LOG_ON_AFTER_TICKS = 12; // ~2s at 180ms/tick
+
+    function canvasPoint(clientX, clientY) {
       const rect = canvas.getBoundingClientRect();
       return {
         x: (clientX - rect.left) * (canvas.width / rect.width),
@@ -531,48 +508,40 @@
       };
     }
 
-    // Swipe on either prototype (MODE/SEL are not touch targets)
-    function bindSwipe(canvas) {
-      let ptrDown = null;
-      canvas.addEventListener("pointerdown", (e) => {
-        const p = canvasPoint(canvas, e.clientX, e.clientY);
-        ptrDown = { x: p.x, y: p.y };
-        try { canvas.setPointerCapture(e.pointerId); } catch (_) {}
-      });
-      canvas.addEventListener("pointerup", (e) => {
-        if (!ptrDown) return;
-        const p = canvasPoint(canvas, e.clientX, e.clientY);
-        const dx = p.x - ptrDown.x;
-        const dy = p.y - ptrDown.y;
-        ptrDown = null;
-        if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy) * 1.2) {
-          if (dx < 0) page = Math.min(PAGE_COUNT - 1, page + 1);
-          else page = Math.max(0, page - 1);
-          redraw();
-          updateMeta();
-        }
-      });
-      canvas.addEventListener("pointercancel", () => { ptrDown = null; });
-    }
-    bindSwipe(canvasOn);
-    bindSwipe(canvasOff);
-
-    function redraw() {
-      drawGauge(ctxOn, lastState, true);
-      drawGauge(ctxOff, lastState, false);
-    }
+    let ptrDown = null;
+    canvas.addEventListener("pointerdown", (e) => {
+      const p = canvasPoint(e.clientX, e.clientY);
+      ptrDown = { x: p.x, y: p.y };
+      try { canvas.setPointerCapture(e.pointerId); } catch (_) {}
+    });
+    canvas.addEventListener("pointerup", (e) => {
+      if (!ptrDown) return;
+      const p = canvasPoint(e.clientX, e.clientY);
+      const dx = p.x - ptrDown.x;
+      const dy = p.y - ptrDown.y;
+      ptrDown = null;
+      if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy) * 1.2) {
+        if (dx < 0) page = Math.min(PAGE_COUNT - 1, page + 1);
+        else page = Math.max(0, page - 1);
+        drawGauge(ctx, lastState, logging);
+        updateMeta();
+      }
+    });
+    canvas.addEventListener("pointercancel", () => { ptrDown = null; });
 
     function updateMeta() {
       meta.textContent =
         `AFR ${lastState.display.toFixed(2)}  band=${lastState.band}` +
         `  page=${page + 1}/${PAGE_COUNT}` +
-        `  left=LOG●  right=LOG○` +
+        (logging ? "  LOG●" : "  LOG○") +
         (lastState.valid ? "" : "  INVALID");
     }
 
     function tick() {
+      tickN += 1;
+      if (!logging && tickN >= LOG_ON_AFTER_TICKS) logging = true;
       lastState = mapAfr(nextSimAfr());
-      redraw();
+      drawGauge(ctx, lastState, logging);
       updateMeta();
       requestAnimationFrame(() => setTimeout(tick, 180));
     }

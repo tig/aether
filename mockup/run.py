@@ -36,7 +36,7 @@ SWIPE_DOTS_Y_FROM_BOTTOM = 14
 BAND_FRAC = 0.14 * 1.1  # dial segments +10% (wider sides / taller top)
 PAGE_COUNT = 3
 # Type as fractions of min(inner half-axes).
-AFR_DIGIT_OF_HALF = 0.58 * 1.5 * 1.1  # value (+10%)
+AFR_DIGIT_OF_HALF = 0.58 * 1.5 * 1.1 * 1.2  # value (+20% on prior)
 TICK_OF_HALF = 0.16 * 1.5  # dial legend
 CAPTION_OF_HALF = 0.12 * 1.5  # value legend
 HARD_LABEL_OF_CHROME = 0.42  # button labels
@@ -260,21 +260,24 @@ def render_gauge_svg(
                 f'text-anchor="middle" dominant-baseline="middle">{label}</text>'
             )
 
-        # Value + value legend (+50%), capped to fit in the aperture.
+        # Value (+20%) + value legend; block vertically centered in the aperture.
         digit_px = min(
             round(half * AFR_DIGIT_OF_HALF),
-            round(min(L["inner_half_w"], L["inner_half_h"]) * 0.72),
+            round(min(L["inner_half_w"], L["inner_half_h"]) * 0.78),
         )
-        digit_y = cy - digit_px * 0.12
+        caption_px = max(12, round(half * CAPTION_OF_HALF))
+        value_gap = round(digit_px * 0.18)
+        block_h = digit_px + value_gap + caption_px
+        digit_y = cy - block_h / 2.0 + digit_px / 2.0
+        caption_y = digit_y + digit_px / 2.0 + value_gap
         parts.append(
             f'<text x="{cx}" y="{digit_y:.1f}" fill="#ff2a2a" '
             f'font-size="{digit_px}" font-weight="700" '
             f'font-family="Consolas, monospace" text-anchor="middle" '
             f'dominant-baseline="middle">{state.readout()}</text>'
         )
-        caption_px = max(12, round(half * CAPTION_OF_HALF))
         parts.append(
-            f'<text x="{cx}" y="{digit_y + digit_px * 0.52:.1f}" fill="#c0c0c8" '
+            f'<text x="{cx}" y="{caption_y:.1f}" fill="#c0c0c8" '
             f'font-size="{caption_px}" font-weight="600" '
             f'font-family="Segoe UI, Arial, sans-serif" text-anchor="middle" '
             f'dominant-baseline="hanging">AIR/FUEL RATIO</text>'
