@@ -1,0 +1,481 @@
+# Aether logging — format & storage contract
+
+**Rev 0.1 · July 2026**  
+**Status:** Contract for implementation planning (not shipped firmware).  
+**Scope:** On-device log representation, channel/time/marker model, export matrix, session & naming conventions, interfaces to live bus and host pull.  
+**Not in scope:** Live serial/CAN framing ([#5](https://github.com/tig/aether/issues/5) → future `specs/inputs.md`), map R/W ([#4](https://github.com/tig/aether/issues/4)), full on-device graphing UI, cloud sync product.
+
+| Related | Link |
+|---------|------|
+| Product requirements | [spec.md](spec.md) §3.6 |
+| Always-on logging + marks | [#2](https://github.com/tig/aether/issues/2) |
+| Format strategy issue | [#3](https://github.com/tig/aether/issues/3) |
+| Host / LLM log pull | [#1](https://github.com/tig/aether/issues/1) |
+| Live serial protocols | [#5](https://github.com/tig/aether/issues/5) |
+| Map R/W formats | [#4](https://github.com/tig/aether/issues/4) |
+| Survey notes (non-normative) | [docs/research/logging-formats.md](../docs/research/logging-formats.md) |
+
+Phrase book additions that appear on the face stay in [lexicon.md](lexicon.md); this file owns **file-format** terms.
+
+---
+
+## 1. Goals & non-goals
+
+### Goals
+
+1. **Always log** useful multi-channel time series without operator ritual ([#2](https://github.com/tig/aether/issues/2)).
+2. Use a **battle-tested ecosystem format** as the **internal/canonical** on-disk representation — not an Aether-only orphan binary.
+3. Open natively in **MegaLogViewer** (and TunerStudio’s log path) with full channel names, units, and **event markers**.
+4. Support **multi-format export** for spreadsheets, LLM/host tools, and secondary tuner apps.
+5. Fit **ESP32-S3** continuous write: fixed-width records, append-friendly, rotation, recoverable partial files.
+6. Align **sequence / user marks** with MLV marker semantics so “the lean spike I marked” is findable in standard tools and by host agents ([#1](https://github.com/tig/aether/issues/1)).
+
+### Non-goals
+
+| Non-goal | Notes |
+|----------|--------|
+| Inventing a closed proprietary-only log with “converter later” | Forbidden for v1 design |
+| Full on-device analysis suite | Export into existing tools is the win |
+| Implementing LogWorks-native `.log` write | Closed; use interchange if ever needed |
+| Forcing ASAM MDF/MF4 as primary | OEM measurement stack; not the DIY tuner default for AFR review |
+| CAN bus framing | Later; logs may **contain** CAN-sourced channels once inputs exist |
+| Logger **face** layout | Separate UI work; face only needs logging LED + mark affordance ([afr-face.md](afr-face.md)) |
+| Map/table file formats | [#4](https://github.com/tig/aether/issues/4) |
+
+---
+
+## 2. Decision (canonical internal format)
+
+### Recommendation
+
+| Role | Format | Extension |
+|------|--------|-----------|
+| **Internal / on-device canonical** | **EFI Analytics MLVLG v2** (Binary MLG Logging) | **`.mlg`** |
+| Primary interchange / human-readable twin | TunerStudio / MLV ASCII datalog | **`.msl`** |
+| Universal spreadsheet / scripts | Delimited text (CSV family) | **`.csv`** |
+| Host / LLM structured pull | JSON projection of the same channel model | **`.json`** (export / API, not primary store) |
+
+**Rationale (must hold for the choice to remain valid):**
+
+1. **Documented.** MLVLG v2 is published by EFI Analytics as *Binary MLG Logging (MLVLG) file format specification* ([public PDF](http://www.efianalytics.com/TunerStudio/docs/MLG_Binary_LogFormat_2.0.pdf)): magic `MLVLG`, big-endian, header + typed data blocks.
+2. **Tuner-first tooling.** `.mlg` opens directly in **MegaLogViewer** / MLV HD; the same ecosystem already dominates MegaSquirt, Speeduino, and **rusEFI** SD/TS logging.
+3. **Embedded-friendly.** Fixed field layout, compact raw integers with scale/transform, appendable type-data pairs, **1-byte CRC** per field record — suitable for continuous SD/flash write without a full DB.
+4. **Markers are first-class.** Block type `1` carries a per-event **null-terminated comment (50 bytes)** at a 10 µs-resolution timestamp — maps cleanly to user marks and start/end sequence ([#2](https://github.com/tig/aether/issues/2)).
+5. **Open converters exist.** Community tools (e.g. [mlg-converter](https://github.com/karniv00l/mlg-converter)) already project MLG → MSL / CSV / JSON; Aether must not depend on them at runtime but they prove the interchange path.
+6. **No orphan format.** Identity export is “copy the `.mlg`”; other formats are **projections**, not a second truth store.
+
+### Alternatives rejected as primary (summary)
+
+| Format | Why not canonical on-device |
+|--------|----------------------------|
+| **`.msl` (ASCII)** | Excellent export; larger, slower, harder to stream at high rate on constrained flash |
+| **CSV / TSV only** | Ubiquitous but weak typed metadata; markers usually stripped; units row is convention not guarantee |
+| **Innovate LogWorks `.log`** | Compact but **closed** native format; ecosystem is wideband-centric; not open for clean ESP32 writer |
+| **LogWorks DIF** | Spreadsheet bridge only; lossy re-import story in LogWorks docs |
+| **ASAM MDF4 / MF4** | Strong OEM/measurement standard; heavy for pocket logger + not what tuners open first for AFR pulls |
+| **Aether-proprietary binary** | Violates product principle unless every critical path has lossless export (still inferior to writing MLG natively) |
+
+Detail comparison: [docs/research/logging-formats.md](../docs/research/logging-formats.md).
+
+### Conformance rule
+
+- On-device durable logs **must** be valid **MLVLG version 2** files (or a documented subset that MLV accepts — see §5.3).
+- Host code **may** re-encode the same session to other formats; re-encode **must not** be required to open the primary file in MLV.
+- If a future MLVLG version is required by tooling, bump this rev and document migration; do not silently diverge.
+
+---
+
+## 3. Survey summary (formats compared)
+
+| Format | Structure (short) | Strengths | Weaknesses | Ecosystem | Aether use |
+|--------|-------------------|-----------|------------|-----------|------------|
+| **MLVLG `.mlg` v2** | BE binary; header (fields, units, scale/transform); type-data blocks: field records + markers | Size, markers, MLV-native, published field layout | BE on little-endian MCU; header fixed at session start; 50-char marker text | MLV, TS, rusEFI SD, Speeduino-class, converters | **Canonical store** |
+| **MSL `.msl`** | Text header lines + tab columns: **name row**, **units row**, then samples; markers as special lines | Debuggable, MLV/TS friendly, easy host parse | Larger; slower write; less dense on flash | TS default PC logs, MLV, SpeedyLogger-class tools | **P0 export** |
+| **CSV / `;` CSV** | Delimited rows; optional units row | Excel, Virtual Dyno, scripts | Markers often lost; weak schema | Everywhere | **P0 export** |
+| **JSON** | Object: fields + records + markers | LLM/host (#1), APIs | Verbose; not tuner-native graph | Host tools | **P0 host pull / P1 file export** |
+| **LogWorks `.log`** | Proprietary compact + settings | LogWorks UX for Innovate chain | Spec not open; reverse-engineer tax | Innovate LogWorks | **Not P0**; optional later if demand |
+| **LogWorks DIF** | Spreadsheet interchange | Excel path from LogWorks | Lossy vs native `.log` | Excel | Covered by our CSV |
+| **MS3/FRD SD proprietary** | ECU-specific binary, TS converts | Existing MS installs | Not general; TS conversion step | MegaSquirt SD | Out of scope as Aether writer |
+| **Speeduino SD** | CSV and/or MLG-class per firmware path | Open ECU precedent | Varies by board/firmware age | Speeduino + MLV | Validate interop; do not fork |
+| **MDF4 / MF4** | ASAM blocks, multi-rate, bus logging | Industry measurement exchange | Complexity, tooling outside DIY AFR | Vector, asammdf, CAN loggers | **P2+** only if CAN bulk archive needs it |
+
+---
+
+## 4. Channel model
+
+### 4.1 Canonical channel object (logical)
+
+Every logged quantity is a **channel**:
+
+| Field | Requirement | Notes |
+|-------|-------------|--------|
+| `name` | **Must** | Stable ASCII identifier ≤ 33 chars payload (MLG name field is 34 including NUL) |
+| `units` | **Must** | ≤ 9 chars payload (MLG units field 10 with NUL); empty only if dimensionless flag/bitfield |
+| `storage_type` | **Must** | One of MLG scalar types: U08, S08, U16, S16, U32, S32, S64, F32 (prefer integer + scale) |
+| `scale`, `transform` | **Must** | `display = (raw + transform) * scale` (MLG formula) |
+| `digits` | **Should** | Display decimals for float style |
+| `category` | **Should** | MLG v2 category (e.g. `Mixture`, `Engine`, `Aether`) for MLV grouping |
+| `source` | **Should** (metadata) | `wideband`, `ecu`, `derived`, `user` — may live in Info Data if not a column |
+| `quality` | **Should** | Separate channel or bitfield: sensor valid / heating / fault |
+
+**Internal mixture truth:** store and prefer **lambda** as the physics channel; AFR is `λ × stoich` for a declared fuel scale. Display/export may present AFR; do not store two disagreeing mixture truths without documenting which is primary.
+
+### 4.2 Required channels (P0 session)
+
+A valid Aether P0 log **must** include:
+
+| Channel name (canonical) | Units | Intent |
+|--------------------------|-------|--------|
+| `Time` | `s` | Session-relative time (also carried by MLG record timestamp; keep column for MSL/CSV parity with TS logs) |
+| `RPM` | `rpm` | Engine speed |
+| `TPS` | `%` | Throttle / load proxy (0–100); use `WOT` display rules only on face, not as log name |
+| `Lambda` **or** `AFR` | `λ` / `AFR` | At least one mixture channel; **prefer `Lambda`** + optional `AFR` derived |
+
+**Should** include when the input exists:
+
+| Channel | Units | Notes |
+|---------|-------|--------|
+| `MAP` | `kPa` | Preferred load axis for table work with [#4](https://github.com/tig/aether/issues/4) |
+| `AFR` | `AFR` | If `Lambda` is primary, still export AFR for tuner familiarity |
+| `Lambda2` / `AFR2` | | Dual wideband ([spec.md](spec.md) §3.7) |
+| `FuelPress` | `kPa` or `psi` | Document unit in field metadata |
+| `CLT`, `IAT` | `°C` (prefer) | Convert on export if user wants °F |
+| `Battery` | `V` | |
+| `AetherMark` | bit/enum | Optional parallel to marker blocks for tools that ignore markers |
+
+### 4.3 Naming rules
+
+- **Must** use stable names across firmware revs for the same physical signal (breaking renames require export aliases).
+- **Must not** use spaces in **canonical** names if avoidable; if ecosystem logs use spaces (`Accel Enrich`), prefer underscore form in Aether (`AccelEnrich`) and document MLV display name if needed.
+- Prefix Aether-only derived channels with `Ae` or category `Aether` (e.g. `AeLeanAlarm`) so they are obvious next to ECU fields.
+- When logging ECU-native names from a protocol ([#5](https://github.com/tig/aether/issues/5)), **prefer the ECU/TS name** for that channel so side-by-side comparison with TS logs stays sane.
+
+### 4.4 Units policy
+
+- Prefer **SI-ish tuner norms**: `kPa`, `°C`, `s`, `rpm`, `%`, `V`, lambda dimensionless as `λ` or `Lambda`.
+- Stoich factor used for AFR conversion **must** be recorded in **Info Data** (and setup profile when that exists).
+- Display filtering on the face **must not** alter logged raw values; log rate and display rate are independent ([spec.md](spec.md) §3.4).
+
+---
+
+## 5. Time base
+
+| Concern | Contract |
+|---------|----------|
+| **Session epoch** | MLG header Unix timestamp (32-bit UTC seconds) when RTC/NTP/host time known; **0** if unknown (allowed by MLG). |
+| **Sample time** | Each field data block: **16-bit timestamp at 10 µs/bit** (MLG), plus monotonic device time in the `Time` channel (seconds, float or scaled int). |
+| **Wrap** | 16-bit × 10 µs wraps every **0.65536 s**. Implementation **must** maintain a full-width monotonic clock (use `int64_t` ms domain clock — see plate HAL notes) and reconstruct absolute sample time; do not treat the 16-bit field alone as session time. |
+| **Clock domain** | Device monotonic for alignment of channels; wall clock only for file metadata and host correlation. |
+| **Sync across sources** | All channels in one record share one sample instant (nearest-sample or interpolated — **document per input** in inputs spec; default nearest). |
+| **Dropped samples** | Prefer gap in `Time` over fake flat-hold; optional `AeDrop` counter channel. |
+
+---
+
+## 6. Markers & events ([#2](https://github.com/tig/aether/issues/2))
+
+### 6.1 Transport in the file
+
+Use **MLG block type 1 (Marker)**:
+
+- Rolling counter + 16-bit timestamp + **50-byte NUL-terminated message**.
+- Rendered in MegaLogViewer as vertical marks with comment text.
+
+ASCII **`.msl` export** **must** preserve markers as distinct lines (not as fake samples). **CSV export** **should** either:
+
+- emit a parallel `markers.csv` / sidecar, or  
+- include a `Marker` column (empty on normal rows),  
+
+and **must document** which approach shipped (markers are easy to lose in naive CSV).
+
+### 6.2 Message grammar (Aether conventions)
+
+Marker text is freeform in MLG; Aether **should** use a small prefix grammar so hosts/LLMs can parse:
+
+| Prefix | Meaning | Example |
+|--------|---------|---------|
+| `MARK ` | User mark (default button / voice) | `MARK lean tip-in` |
+| `SEQ_START ` | Start of operator sequence | `SEQ_START cold start` |
+| `SEQ_END ` | End of sequence | `SEQ_END cold start` |
+| `DRIVE ` | Drive / session tag (optional inline) | `DRIVE street` |
+| `ALARM ` | Auto mark from safety logic | `ALARM lean under load` |
+| `NOTE ` | Longer note (truncated to 50) | `NOTE fuel pressure dip` |
+
+Rules:
+
+- **Must** truncate safely to 49 characters + NUL; prefer keeping the prefix.
+- **Must** support mark without text → `MARK` alone.
+- **Should** support speech-to-text fill when hardware/host provides it ([#2](https://github.com/tig/aether/issues/2)); offline device may only store `MARK`.
+- Nested sequences: **should** allow stack or reject with UI feedback — pick one in implementation and document; default recommendation: **single open sequence** (second `SEQ_START` auto-closes previous with `SEQ_END auto`).
+
+### 6.3 Drive tagging
+
+Two complementary mechanisms (both allowed):
+
+1. **File / directory convention** (§8) — primary for “this whole file is street vs track.”
+2. **`DRIVE` marker** and/or Info Data line `DriveTag: …` — for mid-session retag.
+
+### 6.4 Always-on vs mark UX
+
+- Logging **on** by default when media available and inputs configured ([#2](https://github.com/tig/aether/issues/2)).
+- Face **logging LED** remains the only required on-face logging chrome ([afr-face.md](afr-face.md)).
+- Mark control: hard key long-press, touch affordance on a later page, or host command — **not** specified as face geometry here.
+
+---
+
+## 7. On-device storage model
+
+### 7.1 Session = one `.mlg` file
+
+MLVLG associates **one file ↔ one datalog session** (begin → end). Aether maps:
+
+| Concept | Behavior |
+|---------|----------|
+| **Session start** | Write header (field defs + Info Data), then append blocks |
+| **Session end** | Flush; close file; optional final `NOTE session end` marker |
+| **Always-on** | Auto-start session on boot when logging enabled; rotate per §7.3 |
+| **Crash / power loss** | Last durable flash/SD sync wins; reader **must** tolerate truncated final record (stop at last good CRC) |
+
+### 7.2 Write path requirements
+
+- **Must** buffer in RAM and flush in whole records (field block or marker block).
+- **Must** use big-endian field packing per MLG (byte-swap on ESP32-S3).
+- **Should** fsync/commit policy balance wear vs loss window (open question: media type).
+- **Must not** rewrite the entire file each sample.
+
+### 7.3 Rotation
+
+Rotate to a new file when **any** configured limit hits:
+
+| Trigger | Default intent (tunable) |
+|---------|---------------------------|
+| Max size | e.g. 8–16 MiB per file (open: final numbers with media) |
+| Max duration | e.g. 30–60 min continuous |
+| Wall-clock day boundary | Optional |
+| User “new session” | Explicit |
+| Media nearly full | Stop gracefully + face/host warning |
+
+Rotation **must** finalize field definitions consistently (same channel set across a drive unless profile changes mid-day — if profile changes, new session **must** start).
+
+### 7.4 Media (open where unknown)
+
+Product hardware leaves media open ([spec.md](spec.md) §2). This contract requires **one durable store** at ship; candidates:
+
+| Media | Notes |
+|-------|--------|
+| **microSD** | Preferred for always-on capacity (rusEFI/Speeduino precedent) |
+| **Internal flash / littlefs** | Short ring or few sessions; wear-aware |
+| **Host-only stream** | USB/BT/Wi-Fi live mirror without local retain — allowed as mode, not a substitute for durable always-on when media exists |
+
+**Open questions:** which SKU has SD; max flash budget for logs; USB MSC expose vs pull API only.
+
+### 7.5 Capacity sketch (planning, not acceptance)
+
+Order-of-magnitude: ~20–40 channels of mostly U16 @ 20–50 Hz is a few MB/hour (rusEFI cites ~20 MB/h @ 20 Hz for rich SD logs). Aether P0 channel counts are smaller; treat **hours per GB** as design comfort, not a hard KPI until channel set freezes.
+
+---
+
+## 8. File naming & folder conventions
+
+### 8.1 Default file name
+
+```text
+AETHER_YYYYMMDD_HHMMSS[_TAG].mlg
+```
+
+| Part | Rule |
+|------|------|
+| `AETHER_` | Constant prefix |
+| `YYYYMMDD_HHMMSS` | Session start wall time if known; else monotonic `boot` time like `B00012345` |
+| `_TAG` | Optional drive/profile tag: `STREET`, `TRACK`, `DYNO`, `COLD`, custom ≤ 16 chars `[A-Za-z0-9_-]` |
+
+Export twins:
+
+```text
+AETHER_YYYYMMDD_HHMMSS[_TAG].msl
+AETHER_YYYYMMDD_HHMMSS[_TAG].csv
+AETHER_YYYYMMDD_HHMMSS[_TAG].json
+```
+
+### 8.2 Folder layout (when filesystem present)
+
+```text
+/AETHER/
+  logs/
+    2026/
+      07/
+        AETHER_20260728_183045_STREET.mlg
+  export/          # host-created or on-device export output
+  meta/
+    last_session.json   # optional pointer for host pull
+```
+
+**Should** keep path depth FAT-friendly. Exact mount root depends on SD vs flash (open).
+
+### 8.3 Info Data content (MLG unstructured string)
+
+**Should** include newline-separated lines such as:
+
+```text
+Aether <firmware-version>
+Capture Date: <local or UTC>
+FuelStoich: 14.70
+DriveTag: STREET
+Profile: <name>
+ECU: <identity if known>
+```
+
+---
+
+## 9. Export matrix
+
+| Target | Priority | Producer | Fidelity notes |
+|--------|----------|----------|----------------|
+| **`.mlg` MLVLG v2** | **P0** | Device (canonical) + host re-pack if needed | Identity; markers retained |
+| **`.msl`** | **P0** | Host **must**; device **should** if CPU/media allow | Tab-separated; name + units rows; markers as lines; scaled engineering values |
+| **`.csv`** | **P0** | Host **must**; device optional | Comma or semicolon selectable; document delimiter; markers via column or sidecar |
+| **JSON** (file or HTTP/BT payload) | **P0** for **host pull API**; **P1** as on-disk export | Host / bridge | Fields, records, markers, info — for [#1](https://github.com/tig/aether/issues/1) LLM tools |
+| Virtual Dyno–style `;` CSV | **P1** | Host | Same as CSV with `;` and required column aliases if documented |
+| LogWorks DIF / `.log` | **P2** | Host only if users demand | Do not block P0 |
+| MDF4 | **P2+** | Host | Only if CAN archive / OEM toolchain appears |
+| Parquet / DB | Out of scope | — | |
+
+### Export rules
+
+- **Must** apply scale/transform so exported numeric values are engineering units unless the format stores raw+scale (MLG).
+- **Must** preserve marker timestamps relative to the same time base.
+- **Should** keep channel order stable: `Time`, mixture, `RPM`, load, then others.
+- Lossy exports **must** be labeled (e.g. CSV without markers → warn in host UI).
+
+---
+
+## 10. Host pull path ([#1](https://github.com/tig/aether/issues/1))
+
+High level only (transport detail lives with wireless/host specs):
+
+| Path | Behavior |
+|------|----------|
+| **USB** | CDC or MSC: list sessions, download `.mlg`, optional on-the-fly `.msl`/`.csv`/JSON |
+| **Bluetooth / Wi-Fi** | Same logical **log store API**: list → get metadata → get bytes / stream convert |
+| **SD physical pull** | User removes card; files already MLV-ready |
+| **LLM / agent** | Prefer JSON summary + deep-link to full `.mlg`, or full JSON for short sessions; use marker grammar to answer “at the mark…” |
+
+**Must** expose per-session: filename, start time, duration, size, drive tag, marker index (time + text).
+
+---
+
+## 11. Interfaces to live bus (#5) and maps (#4)
+
+### 11.1 Live bus ([#5](https://github.com/tig/aether/issues/5) / future `inputs.md`)
+
+```text
+  transport (USB/UART/BT/Wi-Fi/CAN later)
+       → decoder
+       → canonical live channels (name, value, quality, timestamp)
+            ├→ AFR face (decimated / filtered)
+            └→ logger writer (full log rate) → .mlg
+```
+
+- Face and logger **share** the canonical channel model; they **must not** each re-parse ECU protocols.
+- Log rate **may** exceed display rate.
+- Logger **must** tolerate missing optional channels (NaN/sentinel + quality) without stopping the session.
+
+### 11.2 Maps ([#4](https://github.com/tig/aether/issues/4))
+
+- Logs do **not** embed full tunes.
+- Markers + RPM/load/mixture streams are the **evidence** input to “enrich this region” workflows.
+- Export of correction hints (measured ÷ target) is a **host/analysis** feature layered on this format, not a second log format.
+
+---
+
+## 12. MLVLG implementation notes (normative subset)
+
+Implementers **must** follow the published MLVLG v2 layout. Critical constants:
+
+| Item | Value |
+|------|--------|
+| Magic | `MLVLG` + NUL (6 bytes) |
+| Version | `0x0002` |
+| Endianness | **Big-endian** |
+| Logger field size (v2) | **89 bytes** per field (includes 34-byte category) |
+| Data block type 0 | Field record: type, counter, **u16 time (10 µs)**, packed raw fields, **u8 CRC** (sum of raw field bytes) |
+| Data block type 1 | Marker: type, counter, u16 time, **50-byte** message |
+| Display formula | `(raw + transform) * scale` |
+
+**Bitfields:** supported by MLG; Aether **may** defer bitfield channels to P1 if unused.
+
+**Validation:** host tests **should** round-trip a fixture through a known-good parser (e.g. community MLG parser or MLV manual open in QA).
+
+---
+
+## 13. Phased implementation outline
+
+| Phase | Deliverable | Exit criteria |
+|-------|-------------|---------------|
+| **P0a** | Channel model + MLG writer library (host-first or firmware unit-testable) | Writes v2 file openable in MLV; markers visible |
+| **P0b** | Always-on session + rotation on available media | Boot → file grows; power-loss leaves openable prefix |
+| **P0c** | User mark + `SEQ_START`/`SEQ_END` | Markers in MLV; grammar stable |
+| **P0d** | Host export: MSL + CSV; pull list/download over USB | Issue #3 export story usable on bench |
+| **P1** | JSON pull for agents; drive tags; dual AFR channels; alarm auto-markers | [#1](https://github.com/tig/aether/issues/1) can fetch + cite marks |
+| **P1b** | Device-side MSL/CSV if media/CPU allow | Optional convenience |
+| **P2** | Extra exports (Virtual Dyno presets, DIF/MDF if demanded) | Data-driven |
+| **P2+** | On-device review/playback UI | Separate UX spec |
+
+---
+
+## 14. Open questions
+
+Do **not** invent hardware answers in firmware PRs until product decides:
+
+1. Logger media for v1 SKU: SD vs internal flash vs host-only?
+2. Default sample rate (face vs log): e.g. display 10–20 Hz, log 20–50 Hz?
+3. Max channels in P0 profile?
+4. RTC source (none / ECU / host sync / GPS later)?
+5. USB MSC vs explicit pull API as primary offline path?
+6. Whether speech mark transcription runs on-device or only via host ([#2](https://github.com/tig/aether/issues/2))?
+7. Exact FAT mount layout and wear-leveling budget?
+8. Is FOAM (or other niche open ECU) in the first pilot set for **live** inputs, or log-format-only interop via MLG/CSV?
+
+---
+
+## 15. Acceptance criteria (future implementation)
+
+A logging implementation claim is **done** for P0 when:
+
+1. [ ] Device or host writer produces **MLVLG v2** `.mlg` with at least `Time`, mixture (`Lambda` or `AFR`), `RPM`, and `TPS` (or `MAP`).
+2. [ ] File opens in **MegaLogViewer** without a custom loader plugin.
+3. [ ] User marker appears at correct relative time with readable text.
+4. [ ] `SEQ_START` / `SEQ_END` markers round-trip in `.mlg` and `.msl` export.
+5. [ ] Continuous logging survives ≥ 10 minutes without drop-to-zero timebase; rotation creates a new valid file.
+6. [ ] Host export produces `.msl` and `.csv` with engineering units.
+7. [ ] Truncated final record does not prevent opening prior samples.
+8. [ ] No reliance on an undocumented Aether-only binary as the only durable form.
+9. [ ] Documented channel list and marker grammar match this spec rev.
+10. [ ] Face logging indicator still matches [afr-face.md](afr-face.md) (no extra face chrome required by this spec).
+
+---
+
+## 16. Lexicon (logging)
+
+| Term | Meaning |
+|------|---------|
+| **Session** | One MLG file from open to close/rotate |
+| **Channel** | Named time series field with units and scale |
+| **Marker** | MLG type-1 event with text; not a sample row |
+| **Sequence** | Operator-bounded interval (`SEQ_START`…`SEQ_END`) |
+| **Drive tag** | Label for duty (street/track/…) via name and/or marker/Info |
+| **Canonical log** | On-device `.mlg` MLVLG v2 |
+| **Projection** | Export (MSL/CSV/JSON) derived from canonical |
+
+---
+
+## 17. References (research anchors)
+
+- EFI Analytics, *Binary MLG Logging (MLVLG) file format specification* v2 — http://www.efianalytics.com/TunerStudio/docs/MLG_Binary_LogFormat_2.0.pdf  
+- MegaLogViewer / TunerStudio product pages (EFI Analytics)  
+- rusEFI Logging Guide (TS + SD → `.mlg`) — https://wiki.rusefi.com/Logging-Guide/  
+- Speeduino SD logging docs / community MLG+CSV practice  
+- Innovate LogWorks manuals (`.log` native, DIF for Excel)  
+- mlg-converter (community MLG → MSL/CSV/JSON) — https://github.com/karniv00l/mlg-converter  
+- ASAM MDF overview (secondary) — https://www.asam.net/standards/detail/mdf/  
+
+Non-normative narrative: [docs/research/logging-formats.md](../docs/research/logging-formats.md).
