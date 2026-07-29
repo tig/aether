@@ -4,15 +4,33 @@
 
 This repository is a product GCU (General Contact Unit) used with [Silico](https://github.com/tig/silico). Runtime target is **C / ESP-IDF** (same plate shape as [tig/xuss-c](https://github.com/tig/xuss-c)).
 
+![Aether AFR face host mockup](docs/images/afr-face-mockup.gif)
+
 ## Vision
 
 A naked AFR digit is low-value. The product Aether is converging on, one layer at a time:
 
-1. **Glanceable AFR gauge on cheap, off-the-shelf hardware** — dial + value + lambda + RPM/TPS on a small touch AMOLED, legible in a car at a glance ([specs/afr-face.md](specs/afr-face.md)). The **current bootstrap target** is one specific pocket ESP32-S3 1.8″ AMOLED board (below); the product intent is to run on a **wide range of ESP32 dev kits**, not lock to a single SKU. **This layer is the part that exists today**, as a host-runnable mockup on the bootstrap board.
-2. **Live ECU link** — Aether as a client of the protocols open ECUs already speak (TunerStudio-compatible newserial: rusEFI / **FOME** / MegaSquirt / Speeduino), over **USB first**, then UART, then wireless. Pilot target is the operator's own **FOME**-based car, plugged into Aether over USB with no PC in the middle. Design: [issue #5](https://github.com/tig/aether/issues/5).
-3. **Always-on logging** — logging starts by default, tags drives, and lets the operator drop voice/button **event marks** ("mark that lean spike") without ritual. Canonical on-device format is **MLVLG (`.mlg`)** so sessions open natively in MegaLogViewer, with **first-class export to Innovate LogWorks** so a remote tuner can open the file without installing Aether's own tools. Design: [issue #2](https://github.com/tig/aether/issues/2), [issue #3](https://github.com/tig/aether/issues/3).
-4. **Remote programmer: full calibration read/write** — not just fuel maps: cold-start/cranking/ASE/WUE curves, idle, protections, every burnable scalar, table, and curve the ECU's definition exposes, modeled as a structured **Aether Tune Model (ATM)** with definition-pinned, backup-before-write, readback-verified, human-gated burns. Design: [issue #4](https://github.com/tig/aether/issues/4).
-5. **Bridge the car to AIs** — Aether as a BT/Wi-Fi bridge so an operator can hand a host LLM the logs, marks, and full calibration — the complete picture an AI needs to reason about a tuning problem — and get back a proposed, reviewable, human-confirmed edit rather than a raw number to interpret themselves. Design: [issue #1](https://github.com/tig/aether/issues/1).
+### Cheap, Easy To Use AFR Gauge and Logger
+
+Dial + value + lambda + RPM/TPS on a small touch AMOLED, legible in a car at a glance ([specs/afr-face.md](specs/afr-face.md)). **This layer is the part that exists today**, as a host-runnable mockup (GIF above).
+
+The **current bootstrap board** is the pocket **[UeeKKoo ESP32-S3-Touch-AMOLED-1.8](https://www.amazon.com/dp/B0F242GFHK)** (Amazon ASIN B0F242GFHK) — full specs in [Hardware](#hardware) below. It's not the only board this is meant for: the product intent is to run on a **wide range of off-the-shelf ESP32 kits**, not lock to a single SKU. Several other **self-contained** ESP32-S3 + AMOLED touch boards share enough of the same display/touch stack (SH8601 QSPI driver, FT3168 I2C touch) that portability is realistic rather than aspirational — see the candidate table in [Hardware](#hardware).
+
+### Live ECU Link
+
+Aether as a client of the protocols open ECUs already speak (TunerStudio-compatible newserial: rusEFI / **FOME** / MegaSquirt / Speeduino), over **USB first**, then UART, then wireless. Pilot target is the operator's own **FOME**-based car, plugged into Aether over USB with no PC in the middle. Design: [issue #5](https://github.com/tig/aether/issues/5).
+
+### Always-On Logging
+
+Logging starts by default, tags drives, and lets the operator drop voice/button **event marks** ("mark that lean spike") without ritual. Canonical on-device format is **MLVLG (`.mlg`)** so sessions open natively in MegaLogViewer, with **first-class export to Innovate LogWorks** so a remote tuner can open the file without installing Aether's own tools. Design: [issue #2](https://github.com/tig/aether/issues/2), [issue #3](https://github.com/tig/aether/issues/3).
+
+### Remote Programmer: Full Calibration Read/Write
+
+Not just fuel maps: cold-start/cranking/ASE/WUE curves, idle, protections, every burnable scalar, table, and curve the ECU's definition exposes, modeled as a structured **Aether Tune Model (ATM)** with definition-pinned, backup-before-write, readback-verified, human-gated burns. Design: [issue #4](https://github.com/tig/aether/issues/4).
+
+### Bridge the Car to AIs
+
+Aether as a BT/Wi-Fi bridge so an operator can hand a host LLM the logs, marks, and full calibration — the complete picture an AI needs to reason about a tuning problem — and get back a proposed, reviewable, human-confirmed edit rather than a raw number to interpret themselves. Design: [issue #1](https://github.com/tig/aether/issues/1).
 
 The acceptance narrative these converge on: **log a bad cold start on the FOME car → hand an LLM the log + full calibration → it proposes a scoped patch to cranking/ASE/WUE (not just the VE table) → human applies, verifies, and burns → next cold start confirms the fix** ([issue #4](https://github.com/tig/aether/issues/4) §18).
 
@@ -57,20 +75,34 @@ Each issue below carries a full planning spec in its body — that spec becomes 
 
 ## Hardware
 
-**Current bootstrap board** — first target while the software is still being learned/built; not the only board Aether intends to support (see [Vision](#vision) #1):
+**Current bootstrap board** — first target while the software is still being learned/built; not the only board Aether intends to support (see [Vision](#vision)):
 
 | Item | Detail |
 |------|--------|
-| Board | ESP32-S3R8, 1.8″ AMOLED 368×448, SH8601 (QSPI), FT3168 (I2C touch), Type-C USB |
-| Class | ESP32-S3-Touch-AMOLED-1.8 (Amazon ASIN [B0F242GFHK](https://www.amazon.com/dp/B0F242GFHK)) |
+| Board | **UeeKKoo ESP32-S3-Touch-AMOLED-1.8** ([Amazon B0F242GFHK](https://www.amazon.com/dp/B0F242GFHK)) |
+| Chip | ESP32-S3R8, 8 MB PSRAM, 16 MB flash |
+| Display | 1.8″ AMOLED 368×448, SH8601 driver (QSPI), FT3168 capacitive touch (I2C), Type-C USB |
 | Product role | ECU monitor, logger, and calibration tool over serial/USB (CANbus reserved for later); real-time AFR gauge face |
 | UI orientation | Landscape **448×368** (hard buttons + USB on top) |
 
-**Longer term:** a wide range of off-the-shelf ESP32 kits (display shapes/sizes vary) rather than a single locked SKU — display layout code should stay portable rather than hard-baked to this one panel's geometry.
+This board appears to be a rebrand/clone of Waveshare's reference design (identical ESP32-S3R8 / SH8601 / FT3168 stack) — worth knowing since Waveshare's own docs and example code are a usable reference even though the board shipped under a different label.
+
+### Longer term: other self-contained ESP32 candidates
+
+Product intent is a **wide range of off-the-shelf ESP32 kits**, not one locked SKU — display layout code should stay portable rather than hard-baked to this one panel's geometry. Candidates below are all **self-contained** (SoC + display + touch on one board, no separate breakout needed); most share the same SH8601/FT3168 stack, which should make the display/touch driver largely reusable:
+
+| Board | Display | Notes |
+|-------|---------|-------|
+| **Waveshare ESP32-S3-Touch-AMOLED-1.8** | 1.8″ 368×448, SH8601/FT3168 | Likely the original design behind the bootstrap board; same panel and pinout family |
+| **Waveshare ESP32-S3-Touch-AMOLED-1.75 / 1.75C** | 1.75″ **round** 466×466, SH8601 | Round face — natural fit for a dial gauge; `.75C` adds an aluminum case |
+| **Waveshare ESP32-S3-Touch-AMOLED-1.32** | 1.32″ round, SH8601 | Smaller/cheaper round option |
+| **LILYGO T-Display-S3 AMOLED (1.43″ round)** | 466×466, SH8601, FT3168 touch (touch variant) | Adds SY6970 Li-ion charge management — good for a battery-powered handheld build |
+| **LILYGO T-Display-S3 AMOLED (1.91″ strip)** | 240×536, SH8601 | Tall/narrow strip; suits a ticker-style secondary gauge page |
+| **M5Stack StopWatch** | 1.75″ round 466×466 | ESP32-S3, 16 MB flash / 8 MB PSRAM, mic + speaker, buttons, vibration motor, IMU, RTC — closest to a finished wearable form factor |
+
+None of these are validated yet — this is a candidate list for future portability work, not a promise any of them boot today.
 
 ## AFR gauge mockup (host)
-
-![Aether AFR face host mockup](docs/images/afr-face-mockup.gif)
 
 Simulated landscape face: **dial**, large AFR **value** with **lambda** to the right, **RPM** / **TPS** (to **WOT**) below, **banner** with MODE/SEL labels and logging LED, **swipe** dots. Rebuild from [specs/afr-face.md](specs/afr-face.md).
 
