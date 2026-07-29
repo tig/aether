@@ -1,0 +1,7 @@
+"""Software-only Aether bench: virtual ECU, virtual Aether, orchestrator.
+
+See ``specs/sim-bench.md`` and ``sim/README.md``.
+"""
+
+__all__ = ["__version__"]
+__version__ = "0.1.0"
