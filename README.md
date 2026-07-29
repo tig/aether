@@ -1,6 +1,6 @@
 # Aether
 
-**Aether** is a complete open source solution for tuning cars with open source ECUs (FOME / rusEFI / Speeduino / MegaSquirt-class). It turns off-the-shelf **ESP32** hardware into an AFR gauge and logger that, once plugged into the ECU's USB port, is also a **remote programmer** — a calibration reader/writer built so an AI can read the logs and the full calibration and figure out the optimal way to fix a tuning problem or find real performance, not just display a number.
+**Aether** is a complete solution for AI tuning cars with open source ECUs (FOME / rusEFI / Speeduino / MegaSquirt-class). It turns off-the-shelf **ESP32** hardware into an AFR gauge and logger that, once plugged into the ECU's USB port, is also a **remote programmer** — a calibration reader/writer built so an AI can read the logs and the full calibration and figure out the optimal way to fix a tuning problem or find real performance, not just display a number.
 
 This repository is a product GCU (General Contact Unit) used with [Silico](https://github.com/tig/silico). Runtime target is **C / ESP-IDF** (same plate shape as [tig/xuss-c](https://github.com/tig/xuss-c)).
 
@@ -80,27 +80,28 @@ Each issue below carries a full planning spec in its body — that spec becomes 
 | Item | Detail |
 |------|--------|
 | Board | **UeeKKoo ESP32-S3-Touch-AMOLED-1.8** ([Amazon B0F242GFHK](https://www.amazon.com/dp/B0F242GFHK)) |
+| Price | **~$50–68** (Amazon US listing; varies by seller/battery bundle) |
 | Chip | ESP32-S3R8, 8 MB PSRAM, 16 MB flash |
 | Display | 1.8″ AMOLED 368×448, SH8601 driver (QSPI), FT3168 capacitive touch (I2C), Type-C USB |
 | Product role | ECU monitor, logger, and calibration tool over serial/USB (CANbus reserved for later); real-time AFR gauge face |
 | UI orientation | Landscape **448×368** (hard buttons + USB on top) |
 
-This board appears to be a rebrand/clone of Waveshare's reference design (identical ESP32-S3R8 / SH8601 / FT3168 stack) — worth knowing since Waveshare's own docs and example code are a usable reference even though the board shipped under a different label.
+This board appears to be a rebrand/clone of Waveshare's reference design (identical ESP32-S3R8 / SH8601 / FT3168 stack) — worth knowing since Waveshare's own docs and example code are a usable reference even though the board shipped under a different label. Notably, **Waveshare sells the same-spec board directly for roughly half the price** (below).
 
 ### Longer term: other self-contained ESP32 candidates
 
 Product intent is a **wide range of off-the-shelf ESP32 kits**, not one locked SKU — display layout code should stay portable rather than hard-baked to this one panel's geometry. Candidates below are all **self-contained** (SoC + display + touch on one board, no separate breakout needed); most share the same SH8601/FT3168 stack, which should make the display/touch driver largely reusable:
 
-| Board | Display | Notes |
-|-------|---------|-------|
-| **Waveshare ESP32-S3-Touch-AMOLED-1.8** | 1.8″ 368×448, SH8601/FT3168 | Likely the original design behind the bootstrap board; same panel and pinout family |
-| **Waveshare ESP32-S3-Touch-AMOLED-1.75 / 1.75C** | 1.75″ **round** 466×466, SH8601 | Round face — natural fit for a dial gauge; `.75C` adds an aluminum case |
-| **Waveshare ESP32-S3-Touch-AMOLED-1.32** | 1.32″ round, SH8601 | Smaller/cheaper round option |
-| **LILYGO T-Display-S3 AMOLED (1.43″ round)** | 466×466, SH8601, FT3168 touch (touch variant) | Adds SY6970 Li-ion charge management — good for a battery-powered handheld build |
-| **LILYGO T-Display-S3 AMOLED (1.91″ strip)** | 240×536, SH8601 | Tall/narrow strip; suits a ticker-style secondary gauge page |
-| **M5Stack StopWatch** | 1.75″ round 466×466 | ESP32-S3, 16 MB flash / 8 MB PSRAM, mic + speaker, buttons, vibration motor, IMU, RTC — closest to a finished wearable form factor |
+| Board | Display | Price (retail, USD) | Notes |
+|-------|---------|----------------------|-------|
+| **Waveshare ESP32-S3-Touch-AMOLED-1.8** | 1.8″ 368×448, SH8601/FT3168 | **~$27–37** | Likely the original design behind the bootstrap board; same panel and pinout family |
+| **Waveshare ESP32-S3-Touch-AMOLED-1.75 / 1.75C** | 1.75″ **round** 466×466, SH8601 | **~$23–27** | Round face — natural fit for a dial gauge; `.75C` adds an aluminum case |
+| **Waveshare ESP32-S3-Touch-AMOLED-1.32** | 1.32″ round, SH8601 | **~$20–23** | Smaller/cheaper round option |
+| **LILYGO T-Display-S3 AMOLED (1.43″ round)** | 466×466, SH8601, FT3168 touch (touch variant) | **~$30** | Adds SY6970 Li-ion charge management — good for a battery-powered handheld build |
+| **LILYGO T-Display-S3 AMOLED (1.91″ strip)** | 240×536, SH8601 | **~$30–33** | Tall/narrow strip; suits a ticker-style secondary gauge page |
+| **M5Stack StopWatch** | 1.75″ round 466×466 | **~$45** | ESP32-S3, 16 MB flash / 8 MB PSRAM, mic + speaker, buttons, vibration motor, IMU, RTC — closest to a finished wearable form factor |
 
-None of these are validated yet — this is a candidate list for future portability work, not a promise any of them boot today.
+Prices are approximate street prices at time of writing (retailer/region dependent) — re-check before buying. None of these are validated yet; this is a candidate list for future portability work, not a promise any of them boot today.
 
 ## AFR gauge mockup (host)
 
