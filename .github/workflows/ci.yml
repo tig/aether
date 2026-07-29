@@ -68,29 +68,14 @@ jobs:
         uses: actions/checkout@v4
         with:
           path: gcu
-      - name: Build firmware + merge flash + identity knock under QEMU
+      - name: Build firmware + QEMU identity knock
         uses: espressif/esp-idf-ci-action@v1
         with:
           esp_idf_version: v5.3.2
           target: esp32s3
           path: gcu/firmware
-          command: >
-            bash -lc '
-            set -euo pipefail
-            idf.py build
-            esptool.py --chip esp32s3 merge_bin --fill-flash-size 4MB
-              -o build/qemu_flash.bin @build/flash_args
-            ls -la build/qemu_flash.bin
-            # Prebuilt Espressif QEMU (xtensa) for ESP32-S3
-            python "$IDF_PATH/tools/idf_tools.py" install qemu-xtensa
-            . "$IDF_PATH/export.sh"
-            python ../sim/qemu/identity_knock.py
-              --flash build/qemu_flash.bin
-              --machine esp32s3
-              --port 5555
-              --boot-timeout 40
-              --knock-timeout 15
-            '
+          # Single script avoids nested-quote collapse in the action wrapper.
+          command: bash ../sim/qemu/ci_qemu_identity.sh
       - name: Upload QEMU flash (debug)
         if: always()
         uses: actions/upload-artifact@v4
