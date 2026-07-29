@@ -14,7 +14,7 @@ A naked AFR digit is low-value. The product Aether is converging on, one layer a
 
 Dial + value + lambda + RPM/TPS on a small touch AMOLED, legible in a car at a glance ([specs/afr-face.md](specs/afr-face.md)). **This layer is the part that exists today**, as a host-runnable mockup (GIF above).
 
-The **current bootstrap board** is the pocket **[UeeKKoo ESP32-S3-Touch-AMOLED-1.8](https://www.amazon.com/dp/B0F242GFHK)** (Amazon ASIN B0F242GFHK) — full specs in [Hardware](#hardware) below. It's not the only board this is meant for: the product intent is to run on a **wide range of off-the-shelf ESP32 kits**, not lock to a single SKU. Several other **self-contained** ESP32-S3 + AMOLED touch boards share enough of the same display/touch stack (SH8601 QSPI driver, FT3168 I2C touch) that portability is realistic rather than aspirational — see the candidate table in [Hardware](#hardware).
+The **current bootstrap board** is the **Waveshare ESP32-S3-Touch-AMOLED-1.8** — full specs in [Hardware](#hardware) below. (The unit actually on the bench was bought on Amazon under the **UeeKKoo** label [ASIN B0F242GFHK] — same ESP32-S3R8/SH8601/FT3168 design, just a rebrand at roughly double Waveshare's direct price; Waveshare's own docs/example code apply either way.) It's not the only board this is meant for: the product intent is to run on a **wide range of off-the-shelf hardware**, not lock to a single SKU. Several other **self-contained** boards — some ESP32-S3, some meaningfully more powerful ESP32-P4 or RP2350 designs — share enough of the same display/touch stack or exceed this board's specs outright that portability is realistic rather than aspirational — see the candidate tables in [Hardware](#hardware).
 
 ### Live ECU Link
 
@@ -75,33 +75,50 @@ Each issue below carries a full planning spec in its body — that spec becomes 
 
 ## Hardware
 
-**Current bootstrap board** — first target while the software is still being learned/built; not the only board Aether intends to support (see [Vision](#vision)):
+### Primary board: Waveshare ESP32-S3-Touch-AMOLED-1.8
+
+First target while the software is still being learned/built; not the only board Aether intends to support (see [Vision](#vision)):
 
 | Item | Detail |
 |------|--------|
-| Board | **UeeKKoo ESP32-S3-Touch-AMOLED-1.8** ([Amazon B0F242GFHK](https://www.amazon.com/dp/B0F242GFHK)) |
-| Price | **~$50–68** (Amazon US listing; varies by seller/battery bundle) |
-| Chip | ESP32-S3R8, 8 MB PSRAM, 16 MB flash |
+| Board | **Waveshare ESP32-S3-Touch-AMOLED-1.8** ([waveshare.com](https://www.waveshare.com/esp32-s3-touch-amoled-1.8.htm)) |
+| Same board, different label | Bench unit was bought on Amazon as **UeeKKoo ESP32-S3-Touch-AMOLED-1.8** ([B0F242GFHK](https://www.amazon.com/dp/B0F242GFHK)) — identical ESP32-S3R8/SH8601/FT3168 design, just resold under a different brand |
+| Price | **~$27–37** direct from Waveshare; the same board as the Amazon/UeeKKoo listing runs **~$50–68** — buy from Waveshare if starting fresh |
+| Chip | ESP32-S3R8, dual-core Xtensa LX7 @ **240 MHz**, 8 MB PSRAM, 16 MB flash |
 | Display | 1.8″ AMOLED 368×448, SH8601 driver (QSPI), FT3168 capacitive touch (I2C), Type-C USB |
+| Wireless | Wi-Fi 4 (802.11 b/g/n, 2.4 GHz only) + Bluetooth LE 5 — **no Classic BT** |
 | Product role | ECU monitor, logger, and calibration tool over serial/USB (CANbus reserved for later); real-time AFR gauge face |
 | UI orientation | Landscape **448×368** (hard buttons + USB on top) |
 
-This board appears to be a rebrand/clone of Waveshare's reference design (identical ESP32-S3R8 / SH8601 / FT3168 stack) — worth knowing since Waveshare's own docs and example code are a usable reference even though the board shipped under a different label. Notably, **Waveshare sells the same-spec board directly for roughly half the price** (below).
+### Performance floor
 
-### Longer term: other self-contained ESP32 candidates
+Everything the mockup and specs are tuned against assumes **this board's specs as the minimum viable compute for Aether**: dual-core @ 240 MHz, 8 MB PSRAM / 16 MB flash, Wi-Fi 4 + BLE 5, no hardware video/graphics accelerator beyond QSPI DMA. Any self-contained board that **matches or beats** that profile is a legitimate future target; anything meaningfully below it shouldn't be assumed capable of running the display pipeline, live ECU polling, always-on logging, and a wireless bridge at once.
 
-Product intent is a **wide range of off-the-shelf ESP32 kits**, not one locked SKU — display layout code should stay portable rather than hard-baked to this one panel's geometry. Candidates below are all **self-contained** (SoC + display + touch on one board, no separate breakout needed); most share the same SH8601/FT3168 stack, which should make the display/touch driver largely reusable:
+### Same tier: other ESP32-S3 boards
+
+Product intent is a **wide range of off-the-shelf hardware**, not one locked SKU — display layout code should stay portable rather than hard-baked to this one panel's geometry. These are all **self-contained** (SoC + display + touch on one board) and share enough of the Waveshare board's SH8601/FT3168 stack that driver code should be largely reusable, at roughly the same compute tier as the floor:
 
 | Board | Display | Price (retail, USD) | Notes |
 |-------|---------|----------------------|-------|
-| **Waveshare ESP32-S3-Touch-AMOLED-1.8** | 1.8″ 368×448, SH8601/FT3168 | **~$27–37** | Likely the original design behind the bootstrap board; same panel and pinout family |
 | **Waveshare ESP32-S3-Touch-AMOLED-1.75 / 1.75C** | 1.75″ **round** 466×466, SH8601 | **~$23–27** | Round face — natural fit for a dial gauge; `.75C` adds an aluminum case |
 | **Waveshare ESP32-S3-Touch-AMOLED-1.32** | 1.32″ round, SH8601 | **~$20–23** | Smaller/cheaper round option |
 | **LILYGO T-Display-S3 AMOLED (1.43″ round)** | 466×466, SH8601, FT3168 touch (touch variant) | **~$30** | Adds SY6970 Li-ion charge management — good for a battery-powered handheld build |
 | **LILYGO T-Display-S3 AMOLED (1.91″ strip)** | 240×536, SH8601 | **~$30–33** | Tall/narrow strip; suits a ticker-style secondary gauge page |
 | **M5Stack StopWatch** | 1.75″ round 466×466 | **~$45** | ESP32-S3, 16 MB flash / 8 MB PSRAM, mic + speaker, buttons, vibration motor, IMU, RTC — closest to a finished wearable form factor |
 
-Prices are approximate street prices at time of writing (retailer/region dependent) — re-check before buying. None of these are validated yet; this is a candidate list for future portability work, not a promise any of them boot today.
+### Higher tier: more headroom than the floor
+
+Not limited to Espressif's S3 line. **ESP32-P4** is Espressif's newer RISC-V application processor: no wireless silicon on the P4 die itself, but every self-contained board below already bundles a companion **ESP32-C6** for Wi-Fi 6 + BT 5, so "self-contained" still holds. **RP2350** (Raspberry Pi's own silicon) is the one non-Espressif family with a shipping self-contained, Wi-Fi-capable touch-display board — plain STM32/nRF52/nRF5340 boards were **not** included here because none ship integrated wireless on the same board; they'd need an added radio module to meet the "self-contained bridge to a host" requirement.
+
+| Board | CPU vs. floor | RAM/flash vs. floor | Wireless vs. floor | Price (retail, USD) | Notes |
+|-------|---------------|----------------------|---------------------|----------------------|-------|
+| **Waveshare ESP32-P4-WIFI6-Touch-LCD-3.4C / 4C** | RISC-V dual-core @ 400 MHz (~1.7×) + HW 2D GPU/JPEG codec | 32 MB PSRAM / 32 MB flash (**4× / 2×**) | Wi-Fi 6 + BT 5 via bundled ESP32-C6 (**exceeds**) | **~$20–78** | Round 800×800 / 720×720 IPS touch; MIPI-CSI camera header; natural dial-gauge shape |
+| **Waveshare ESP32-P4-WIFI6-Touch-LCD-7/8/10.1** | Same P4 core | 32 MB / 32 MB | Wi-Fi 6 + BT 5 | Not researched in USD | Tablet-class HMI panels; overkill for a pocket gauge, but the 7″ variant already breaks out **RS-485/CAN headers** — worth watching if Aether ever needs onboard CAN |
+| **M5Stack Tab5** | RISC-V dual-core @ 400 MHz | 32 MB PSRAM / 16 MB flash | Wi-Fi 6 + BT 5.2 | **~$55–60** | 5″ 1280×720 IPS touch, camera, USB-A host, RS-485, swappable battery — most "finished tablet" of the bunch |
+| **LILYGO T-Display-P4** | RISC-V dual-core @ 400 MHz | 32 MB PSRAM / 16 MB flash | Wi-Fi 6 + BT 5 via C6, **plus SX1262 LoRa + GPS** | **~$97–136** | 4.1″ AMOLED 568×1232; LoRa opens a long-range wireless bridge option beyond BT/Wi-Fi range for [issue #1](https://github.com/tig/aether/issues/1) |
+| **Pimoroni Presto (RP2350)** | Dual Cortex-M33 / Hazard3 RISC-V @ 150 MHz — roughly **at or slightly below** the floor's raw CPU | 8 MB PSRAM / 16 MB flash — **matches** floor | Wi-Fi 4 + BT via RM2 module — **matches** floor | **~£69 (~$85–90)** | Different silicon family entirely (Raspberry Pi, not Espressif); square 480×480 IPS touch, MicroPython-first; doesn't clearly beat the floor, but proves the display/touch pattern isn't Espressif-only |
+
+Prices are approximate street prices at time of writing (retailer/region dependent) — re-check before buying. None of the boards in either table are validated on Aether yet; these are candidate lists for future portability work, not a promise any of them boot today.
 
 ## AFR gauge mockup (host)
 
