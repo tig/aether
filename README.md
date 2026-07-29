@@ -1,8 +1,8 @@
 # Aether
 
-**Aether** is a complete solution for AI tuning cars with open source ECUs (FOME / rusEFI / Speeduino / MegaSquirt-class). It turns off-the-shelf **ESP32** hardware into an AFR gauge and logger that, once plugged into the ECU's USB port, is also a **remote programmer** — a calibration reader/writer built so an AI can read the logs and the full calibration and figure out the optimal way to fix a tuning problem or find real performance, not just display a number.
+**Aether** is a complete solution for AI tuning of cars with open-source ECUs (FOME / rusEFI / Speeduino / MegaSquirt-class). It turns cheap (< $50) off-the-shelf **ESP32** hardware into a kick-ass AFR gauge and logger that, once plugged into the ECU's USB port, is also a **remote programmer**. Aether is designed to make it easy for AIs such as Claude Code, Grok Build, Cursor, etc... to read the logs and the full calibration and figure out the optimal way to fix a tuning problem or find real performance improvements.
 
-This repository is a product GCU (General Contact Unit) used with [Silico](https://github.com/tig/silico). Runtime target is **C / ESP-IDF** (same plate shape as [tig/xuss-c](https://github.com/tig/xuss-c)).
+This repository is a product GCU (General Contact Unit) used with [Silico](https://github.com/tig/silico). 
 
 | Host AFR face mockup | Bootstrap board: Waveshare ESP32-S3-Touch-AMOLED-1.8 |
 |:---:|:---:|
@@ -10,11 +10,11 @@ This repository is a product GCU (General Contact Unit) used with [Silico](https
 
 ## Vision
 
-A naked AFR digit is low-value. The product Aether is converging on, one layer at a time:
+> "My '87 528e has a custom 2.9L stroker motor and runs a Classic Daily 55-pin Standalone ECU. I've been struggling to get the car to perform well after a cold-start. It's great when warm. I am not a tuner, nor do I know (or care to know) how TunerPro works." said, Tig Kindel, an E28 enthusiast. "I plugged Aether into the USB port on the Classic Daily ECU and it instantly showed that it was connected. I started the car and limped around the block (because off the cold-start issue). While I was driving Aether showed me the AFR, RPM, and throttle info in real time on the tiny display. After the drive, I left the car powered on (not running, just so the ECU had power) and started Grok Build on my PC. I told grok to find the Aether device and to diagnose the logs from the latest drive. Grok found the device, read the logs, and then proposed changes to my tune. Burning the new calibration was as easy as telling Grok to do it. After letting the car cool down again, my next drive was perfect. Problem fixed!". 
 
 ### Cheap, Easy To Use AFR Gauge and Logger
 
-Dial + value + lambda + RPM/TPS on a small touch AMOLED, legible in a car at a glance ([specs/afr-face.md](specs/afr-face.md)). **This layer is the part that exists today**, as a host-runnable mockup (GIF above).
+Dial + value + lambda + RPM/TPS on a small touch AMOLED, legible in a car at a glance ([specs/afr-face.md](specs/afr-face.md)). **This layer is the part that exists today**, as a mockup (GIF above).
 
 The **current bootstrap board** is the **Waveshare ESP32-S3-Touch-AMOLED-1.8** — full specs in [Hardware](#hardware) below. (The unit actually on the bench was bought on Amazon under the **UeeKKoo** label [ASIN B0F242GFHK] — same ESP32-S3R8/SH8601/FT3168 design, just a rebrand at roughly double Waveshare's direct price; Waveshare's own docs/example code apply either way.) It's not the only board this is meant for: the product intent is to run on a **wide range of off-the-shelf hardware**, not lock to a single SKU. Several other **self-contained** boards — some ESP32-S3, some meaningfully more powerful ESP32-P4 or RP2350 designs — share enough of the same display/touch stack or exceed this board's specs outright that portability is realistic rather than aspirational — see the candidate tables in [Hardware](#hardware).
 
