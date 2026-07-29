@@ -2,7 +2,7 @@
 
 from .pages import CalibrationStore, Page
 from .protocol import EcuProtocolError, handle_line
-from .server import EcuServer, run_server
+from .server import EcuServer
 
 __all__ = [
     "CalibrationStore",
@@ -10,5 +10,4 @@ __all__ = [
     "EcuServer",
     "Page",
     "handle_line",
-    "run_server",
 ]

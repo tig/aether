@@ -2,7 +2,7 @@
 
 **Rev 0.2 · July 2026**  
 **Status:** Implemented host sim (`sim/`) + portable C ECU client + ESPREC1 on
-V-AETHER + QEMU identity CI job.  
+V-AETHER + QEMU **identity knock** CI job (not boot-print alone).  
 **Related:** issue #4 (calibration R/W + burn), #5 (serial session),
 [tig/esprec](https://github.com/tig/esprec) (framebuffer capture).
 
@@ -54,7 +54,7 @@ Real USB and a real FOME are **not** required for this gate.
 | **host_test** | `cmake --build build/host --target host_test` | Every PR (includes `test_ecu_client`) |
 | **sim-bench** | `python -m pytest sim/tests -q` | Every PR |
 | **sim-orch** | `python -m sim.orch all --out sim/out` | CI smoke |
-| **qemu-identity** | CI job: build firmware → QEMU → `run_identity_check.py` | Every PR (after host-gate) |
+| **qemu-identity** | CI job: build firmware → QEMU UART TCP → `identity_knock.py` | Every PR (after host-gate) |
 
 ## 4. What is proven vs not
 

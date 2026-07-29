@@ -60,12 +60,15 @@ int main(void) {
   uint8_t buf[8];
   uint8_t wdata[2] = {0xef, 0xbe};
 
-  /* hex helpers */
+  /* hex helpers — strict pairs (reject partial like "0g") */
   {
     uint8_t out[4];
     char hex[16];
     if (expect(gcu_ecu_hex_decode("aabbcc", out, sizeof out) == 3, "hex decode len") ||
         expect(out[0] == 0xaa && out[1] == 0xbb && out[2] == 0xcc, "hex decode bytes") ||
+        expect(gcu_ecu_hex_decode("0g", out, sizeof out) < 0, "hex reject 0g") ||
+        expect(gcu_ecu_hex_decode("gg", out, sizeof out) < 0, "hex reject gg") ||
+        expect(gcu_ecu_hex_decode("abc", out, sizeof out) < 0, "hex reject odd") ||
         expect(gcu_ecu_hex_encode(out, 3, hex, sizeof hex) == 0, "hex encode") ||
         expect(strcmp(hex, "aabbcc") == 0, "hex encode value")) {
       return 1;

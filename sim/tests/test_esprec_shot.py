@@ -36,16 +36,8 @@ def test_esprec_shot_over_tcp_and_optional_esprec_lib(tmp_path: Path) -> None:
         boot = port.connect()
         assert boot.startswith("fw_name=AETHER")
 
-        # Local grab (no esprec install required)
-        port.write(b"esprec shot\n")
-        lines: list[str] = []
-        while True:
-            raw = port.readline()
-            assert raw, "timeout waiting for esprec frame"
-            text = raw.decode("utf-8", errors="replace").rstrip("\r\n")
-            lines.append(text)
-            if text.startswith("ESPREC1_END"):
-                break
+        # Local grab via host client multi-line shot
+        lines = port.esprec_shot()
         w, h, raster = verify_esprec1_lines(lines)
         assert w * h * 2 == len(raster)
 

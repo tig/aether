@@ -9,7 +9,7 @@ on:
 #   1) cmake host_test (pure C; no silico required for that step)
 #   2) silico gate include-hygiene (+ [host].gate) via sibling tig/silico checkout
 #   3) software bench (V-ECU + V-AETHER + orch + ESPREC)
-#   4) QEMU identity (real firmware image under Espressif QEMU)
+#   4) QEMU identity knock (real firmware image under Espressif QEMU)
 jobs:
   host-gate:
     runs-on: ubuntu-latest
@@ -68,55 +68,33 @@ jobs:
         uses: actions/checkout@v4
         with:
           path: gcu
-      - name: Build firmware (ESP-IDF esp32s3)
-        uses: espressif/esp-idf-ci-action@v1
-        with:
-          esp_idf_version: v5.3.2
-          target: esp32s3
-          path: gcu/firmware
-          command: idf.py build
-      - name: Merge flash image for QEMU
+      - name: Build firmware + merge flash + identity knock under QEMU
         uses: espressif/esp-idf-ci-action@v1
         with:
           esp_idf_version: v5.3.2
           target: esp32s3
           path: gcu/firmware
           command: >
-            bash -lc 'esptool.py --chip esp32s3 merge_bin --fill-flash-size 4MB
-            -o build/qemu_flash.bin @build/flash_args && ls -la build/qemu_flash.bin'
-      - name: Run firmware in QEMU
-        uses: tobozo/esp32-qemu-sim@v1
-        with:
-          chip: esp32s3
-          flash-image: gcu/firmware/build/qemu_flash.bin
-          flash-size: "4"
-          qemu-timeout: "60"
-          timeout-interrupt-regex: "fw_name=AETHER"
-      - name: Assert identity in QEMU log
-        working-directory: .
-        run: |
-          set -e
-          LOG=""
-          for c in logs.txt ./logs.txt gcu/logs.txt; do
-            if [ -f "$c" ]; then LOG="$c"; break; fi
-          done
-          if [ -z "$LOG" ]; then
-            LOG=$(find . -name 'logs.txt' 2>/dev/null | head -1 || true)
-          fi
-          if [ -z "$LOG" ] || [ ! -f "$LOG" ]; then
-            echo "FAIL: logs.txt not found after QEMU run"
-            find . -maxdepth 4 -type f -name '*.txt' 2>/dev/null | head -40
-            exit 1
-          fi
-          echo "Using log: $LOG"
-          python3 gcu/sim/qemu/run_identity_check.py "$LOG"
-      - name: Upload QEMU logs
+            bash -lc '
+            set -euo pipefail
+            idf.py build
+            esptool.py --chip esp32s3 merge_bin --fill-flash-size 4MB
+              -o build/qemu_flash.bin @build/flash_args
+            ls -la build/qemu_flash.bin
+            # Prebuilt Espressif QEMU (xtensa) for ESP32-S3
+            python "$IDF_PATH/tools/idf_tools.py" install qemu-xtensa
+            . "$IDF_PATH/export.sh"
+            python ../sim/qemu/identity_knock.py
+              --flash build/qemu_flash.bin
+              --machine esp32s3
+              --port 5555
+              --boot-timeout 40
+              --knock-timeout 15
+            '
+      - name: Upload QEMU flash (debug)
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: qemu-identity-logs
-          path: |
-            logs.txt
-            **/logs.txt
-            gcu/firmware/build/qemu_flash.bin
+          name: qemu-identity-flash
+          path: gcu/firmware/build/qemu_flash.bin
           if-no-files-found: ignore

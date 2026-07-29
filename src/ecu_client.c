@@ -16,6 +16,19 @@ static int starts_with(const char *s, const char *pfx) {
   return strncmp(s, pfx, n) == 0;
 }
 
+static int hex_nibble(char c) {
+  if (c >= '0' && c <= '9') {
+    return c - '0';
+  }
+  if (c >= 'a' && c <= 'f') {
+    return c - 'a' + 10;
+  }
+  if (c >= 'A' && c <= 'F') {
+    return c - 'A' + 10;
+  }
+  return -1;
+}
+
 int gcu_ecu_hex_decode(const char *hex, uint8_t *out, size_t out_len) {
   size_t n;
   size_t i;
@@ -27,11 +40,13 @@ int gcu_ecu_hex_decode(const char *hex, uint8_t *out, size_t out_len) {
     return -1;
   }
   for (i = 0; i < n; i += 2) {
-    unsigned int b = 0;
-    if (sscanf(hex + i, "%2x", &b) != 1) {
+    int hi = hex_nibble(hex[i]);
+    int lo = hex_nibble(hex[i + 1]);
+    /* Both characters must be hex — reject partial parses like "0g". */
+    if (hi < 0 || lo < 0) {
       return -1;
     }
-    out[i / 2] = (uint8_t)b;
+    out[i / 2] = (uint8_t)((hi << 4) | lo);
   }
   return (int)(n / 2);
 }

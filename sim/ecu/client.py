@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-import socket
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+
+from ..line_socket import LineSocket
 
 
 @dataclass
@@ -11,38 +12,19 @@ class EcuClient:
     host: str
     port: int
     timeout_s: float = 2.0
+    _ls: LineSocket = field(init=False, repr=False)
 
     def __post_init__(self) -> None:
-        self._sock: socket.socket | None = None
-        self._rfile = None
-        self._wfile = None
+        self._ls = LineSocket(self.host, self.port, timeout_s=self.timeout_s)
 
     def connect(self) -> None:
-        self.close()
-        sock = socket.create_connection((self.host, self.port), timeout=self.timeout_s)
-        sock.settimeout(self.timeout_s)
-        self._sock = sock
-        self._rfile = sock.makefile("rb")
-        self._wfile = sock.makefile("wb")
-        greeting = self._readline()
+        self._ls.connect()
+        greeting = self._ls.readline_str()
         if not greeting.startswith("AESP"):
             raise RuntimeError(f"unexpected ECU greeting: {greeting!r}")
 
     def close(self) -> None:
-        for f in (self._rfile, self._wfile):
-            if f is not None:
-                try:
-                    f.close()
-                except Exception:
-                    pass
-        self._rfile = None
-        self._wfile = None
-        if self._sock is not None:
-            try:
-                self._sock.close()
-            except Exception:
-                pass
-            self._sock = None
+        self._ls.close()
 
     def __enter__(self) -> "EcuClient":
         self.connect()
@@ -51,20 +33,9 @@ class EcuClient:
     def __exit__(self, *args: object) -> None:
         self.close()
 
-    def _readline(self) -> str:
-        assert self._rfile is not None
-        line = self._rfile.readline()
-        if not line:
-            raise RuntimeError("ECU connection closed")
-        return line.decode("utf-8", errors="replace").rstrip("\r\n")
-
     def cmd(self, line: str) -> str:
-        if self._sock is None:
-            self.connect()
-        assert self._wfile is not None
-        self._wfile.write((line.rstrip("\r\n") + "\n").encode("utf-8"))
-        self._wfile.flush()
-        return self._readline()
+        self._ls.write_line(line)
+        return self._ls.readline_str()
 
     def signature(self) -> str:
         resp = self.cmd("SIGN")

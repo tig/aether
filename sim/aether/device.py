@@ -13,14 +13,14 @@ see ``specs/sim-bench.md``.
 from __future__ import annotations
 
 import argparse
-import socket
 import socketserver
 import threading
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Union
+from typing import Callable, ClassVar, Union
 
 from ..ecu.client import EcuClient
+from ..line_socket import LineSocket
 from .esprec_emit import build_esprec1_lines
 from .framebuffer import SyntheticFramebuffer
 
@@ -28,6 +28,9 @@ FW_NAME = "AETHER"
 FW_VERSION = "0.0.1"
 
 Response = Union[str, list[str]]
+CmdHandler = Callable[["AetherDevice", list[str]], Response]
+
+ESPREC_ALIASES = frozenset({"esprec shot", "shot", "frame", "esprec", "esprec.shot"})
 
 
 def identity_line(fw_name: str = FW_NAME, fw_version: str = FW_VERSION) -> str:
@@ -76,6 +79,105 @@ class AetherDevice:
         )
         return lines
 
+    # --- command handlers (registered in COMMANDS) ---
+
+    def _cmd_ping(self, _parts: list[str]) -> Response:
+        return "PONG aether-sim"
+
+    def _cmd_help(self, _parts: list[str]) -> Response:
+        return (
+            "OK cmds: identity ping help ecu.sign ecu.backup ecu.restore "
+            "ecu.golden ecu.mutate ecu.burn ecu.powercycle ecu.ramcrc "
+            "ecu.flashcrc ecu.read ecu.write fb.meta fb.ppm fb.pattern "
+            "esprec shot"
+        )
+
+    def _cmd_ecu_sign(self, _parts: list[str]) -> Response:
+        sig = self._require_ecu().signature()
+        self.audit.append(f"ecu.sign {sig}")
+        return f"OK {sig}"
+
+    def _cmd_ecu_backup(self, _parts: list[str]) -> Response:
+        pages = self._require_ecu().dump_flash_pages()
+        self._backup_flash = pages
+        crc = self._require_ecu().flash_crc_all()
+        self.audit.append(f"ecu.backup pages={len(pages)} flash_crc={crc}")
+        return f"OK backup pages={len(pages)} flash_crc={crc}"
+
+    def _cmd_ecu_restore(self, _parts: list[str]) -> Response:
+        if self._backup_flash is None:
+            return "ERR no_backup"
+        ecu = self._require_ecu()
+        for i, data in enumerate(self._backup_flash):
+            ecu.write_ram(i, 0, data)
+        ecu.burn()
+        crc = ecu.flash_crc_all()
+        self.audit.append(f"ecu.restore flash_crc={crc}")
+        return f"OK restored flash_crc={crc}"
+
+    def _cmd_ecu_golden(self, _parts: list[str]) -> Response:
+        crc = self._require_ecu().install_golden()
+        self.audit.append(f"ecu.golden flash_crc={crc}")
+        return f"OK golden flash_crc={crc}"
+
+    def _cmd_ecu_mutate(self, _parts: list[str]) -> Response:
+        detail = self._require_ecu().mutate()
+        self.audit.append(f"ecu.mutate {detail}")
+        return f"OK {detail}"
+
+    def _cmd_ecu_burn(self, _parts: list[str]) -> Response:
+        self._require_ecu().burn()
+        crc = self._require_ecu().flash_crc_all()
+        self.audit.append(f"ecu.burn flash_crc={crc}")
+        return f"OK burned flash_crc={crc}"
+
+    def _cmd_ecu_powercycle(self, _parts: list[str]) -> Response:
+        self._require_ecu().power_cycle()
+        self.audit.append("ecu.powercycle")
+        return "OK powercycle"
+
+    def _cmd_ecu_ramcrc(self, _parts: list[str]) -> Response:
+        return f"OK {self._require_ecu().ram_crc_all()}"
+
+    def _cmd_ecu_flashcrc(self, _parts: list[str]) -> Response:
+        return f"OK {self._require_ecu().flash_crc_all()}"
+
+    def _cmd_ecu_read(self, parts: list[str]) -> Response:
+        if len(parts) != 4:
+            return "ERR usage ecu.read <page> <off> <len>"
+        page, off, length = int(parts[1]), int(parts[2]), int(parts[3])
+        data = self._require_ecu().read_ram(page, off, length)
+        return f"OK {data.hex()}"
+
+    def _cmd_ecu_write(self, parts: list[str]) -> Response:
+        if len(parts) != 4:
+            return "ERR usage ecu.write <page> <off> <hex>"
+        page, off = int(parts[1]), int(parts[2])
+        data = bytes.fromhex(parts[3])
+        self._require_ecu().write_ram(page, off, data)
+        return f"OK wrote {len(data)}"
+
+    def _cmd_fb_meta(self, _parts: list[str]) -> Response:
+        return f"OK {self.fb.meta_line()}"
+
+    def _cmd_fb_pattern(self, parts: list[str]) -> Response:
+        if len(parts) != 2:
+            return "ERR usage fb.pattern <id>"
+        self.fb.set_pattern(int(parts[1]))
+        return f"OK {self.fb.meta_line()}"
+
+    def _cmd_fb_ppm(self, parts: list[str]) -> Response:
+        if len(parts) != 2:
+            return "ERR usage fb.ppm <path>"
+        path = Path(parts[1])
+        self.fb.to_ppm(path)
+        return f"OK wrote {path.as_posix()} {self.fb.meta_line()}"
+
+    def _cmd_audit(self, _parts: list[str]) -> Response:
+        return "OK " + (" | ".join(self.audit) if self.audit else "(empty)")
+
+    COMMANDS: ClassVar[dict[str, CmdHandler]] = {}
+
     def handle_line(self, line: str) -> Response:
         raw = line.strip()
         if not raw:
@@ -86,120 +188,46 @@ class AetherDevice:
             return self.identity()
 
         low = raw.lower()
-        # esprec host CLI sends "esprec shot" or "shot"
-        if low in ("esprec shot", "shot", "frame", "esprec", "esprec.shot"):
+        if low in ESPREC_ALIASES:
             return self.esprec_shot_lines()
 
         parts = raw.split()
         cmd = parts[0].lower()
-
-        try:
-            if cmd == "ping":
-                return "PONG aether-sim"
-
-            if cmd == "help":
-                return (
-                    "OK cmds: identity ping help ecu.sign ecu.backup ecu.restore "
-                    "ecu.golden ecu.mutate ecu.burn ecu.powercycle ecu.ramcrc "
-                    "ecu.flashcrc ecu.read ecu.write fb.meta fb.ppm fb.pattern "
-                    "esprec shot"
-                )
-
-            if cmd == "ecu.sign":
-                sig = self._require_ecu().signature()
-                self.audit.append(f"ecu.sign {sig}")
-                return f"OK {sig}"
-
-            if cmd == "ecu.backup":
-                pages = self._require_ecu().dump_flash_pages()
-                self._backup_flash = pages
-                crc = self._require_ecu().flash_crc_all()
-                self.audit.append(f"ecu.backup pages={len(pages)} flash_crc={crc}")
-                return f"OK backup pages={len(pages)} flash_crc={crc}"
-
-            if cmd == "ecu.restore":
-                if self._backup_flash is None:
-                    return "ERR no_backup"
-                ecu = self._require_ecu()
-                for i, data in enumerate(self._backup_flash):
-                    ecu.write_ram(i, 0, data)
-                ecu.burn()
-                crc = ecu.flash_crc_all()
-                self.audit.append(f"ecu.restore flash_crc={crc}")
-                return f"OK restored flash_crc={crc}"
-
-            if cmd == "ecu.golden":
-                crc = self._require_ecu().install_golden()
-                self.audit.append(f"ecu.golden flash_crc={crc}")
-                return f"OK golden flash_crc={crc}"
-
-            if cmd == "ecu.mutate":
-                detail = self._require_ecu().mutate()
-                self.audit.append(f"ecu.mutate {detail}")
-                return f"OK {detail}"
-
-            if cmd == "ecu.burn":
-                self._require_ecu().burn()
-                crc = self._require_ecu().flash_crc_all()
-                self.audit.append(f"ecu.burn flash_crc={crc}")
-                return f"OK burned flash_crc={crc}"
-
-            if cmd == "ecu.powercycle":
-                self._require_ecu().power_cycle()
-                self.audit.append("ecu.powercycle")
-                return "OK powercycle"
-
-            if cmd == "ecu.ramcrc":
-                return f"OK {self._require_ecu().ram_crc_all()}"
-
-            if cmd == "ecu.flashcrc":
-                return f"OK {self._require_ecu().flash_crc_all()}"
-
-            if cmd == "ecu.read":
-                if len(parts) != 4:
-                    return "ERR usage ecu.read <page> <off> <len>"
-                page, off, length = int(parts[1]), int(parts[2]), int(parts[3])
-                data = self._require_ecu().read_ram(page, off, length)
-                return f"OK {data.hex()}"
-
-            if cmd == "ecu.write":
-                if len(parts) != 4:
-                    return "ERR usage ecu.write <page> <off> <hex>"
-                page, off = int(parts[1]), int(parts[2])
-                data = bytes.fromhex(parts[3])
-                self._require_ecu().write_ram(page, off, data)
-                return f"OK wrote {len(data)}"
-
-            if cmd == "fb.meta":
-                return f"OK {self.fb.meta_line()}"
-
-            if cmd == "fb.pattern":
-                if len(parts) != 2:
-                    return "ERR usage fb.pattern <id>"
-                self.fb.set_pattern(int(parts[1]))
-                return f"OK {self.fb.meta_line()}"
-
-            if cmd == "fb.ppm":
-                if len(parts) != 2:
-                    return "ERR usage fb.ppm <path>"
-                path = Path(parts[1])
-                self.fb.to_ppm(path)
-                return f"OK wrote {path.as_posix()} {self.fb.meta_line()}"
-
-            if cmd == "audit":
-                return "OK " + (" | ".join(self.audit) if self.audit else "(empty)")
-
+        handler = self.COMMANDS.get(cmd)
+        if handler is None:
             return f"ERR unknown {cmd}"
-
+        try:
+            return handler(self, parts)
         except Exception as exc:  # noqa: BLE001 — wire-facing
             return f"ERR {type(exc).__name__}:{exc}"[:200]
+
+
+# Populate after class body so handlers bind cleanly.
+AetherDevice.COMMANDS = {
+    "ping": AetherDevice._cmd_ping,
+    "help": AetherDevice._cmd_help,
+    "ecu.sign": AetherDevice._cmd_ecu_sign,
+    "ecu.backup": AetherDevice._cmd_ecu_backup,
+    "ecu.restore": AetherDevice._cmd_ecu_restore,
+    "ecu.golden": AetherDevice._cmd_ecu_golden,
+    "ecu.mutate": AetherDevice._cmd_ecu_mutate,
+    "ecu.burn": AetherDevice._cmd_ecu_burn,
+    "ecu.powercycle": AetherDevice._cmd_ecu_powercycle,
+    "ecu.ramcrc": AetherDevice._cmd_ecu_ramcrc,
+    "ecu.flashcrc": AetherDevice._cmd_ecu_flashcrc,
+    "ecu.read": AetherDevice._cmd_ecu_read,
+    "ecu.write": AetherDevice._cmd_ecu_write,
+    "fb.meta": AetherDevice._cmd_fb_meta,
+    "fb.pattern": AetherDevice._cmd_fb_pattern,
+    "fb.ppm": AetherDevice._cmd_fb_ppm,
+    "audit": AetherDevice._cmd_audit,
+}
 
 
 class _AetherHandler(socketserver.StreamRequestHandler):
     device: AetherDevice
 
     def handle(self) -> None:
-        # Boot identity print (metal does this once at boot).
         self.wfile.write((self.device.identity() + "\n").encode("utf-8"))
         self.wfile.flush()
         while True:
@@ -275,37 +303,16 @@ class AetherHostClient:
     """Host-side client talking to AetherServer (or later QEMU serial TCP)."""
 
     def __init__(self, host: str, port: int, timeout_s: float = 2.0) -> None:
-        self.host = host
-        self.port = port
-        self.timeout_s = timeout_s
-        self._sock: socket.socket | None = None
-        self._rfile: Any = None
-        self._wfile: Any = None
+        self._ls = LineSocket(host, port, timeout_s=timeout_s)
+        self.boot_identity: str | None = None
 
     def connect(self) -> str:
-        self.close()
-        sock = socket.create_connection((self.host, self.port), timeout=self.timeout_s)
-        sock.settimeout(self.timeout_s)
-        self._sock = sock
-        self._rfile = sock.makefile("rb")
-        self._wfile = sock.makefile("wb")
-        boot = self._readline()
-        return boot
+        self._ls.connect()
+        self.boot_identity = self._ls.readline_str()
+        return self.boot_identity
 
     def close(self) -> None:
-        for f in (self._rfile, self._wfile):
-            if f is not None:
-                try:
-                    f.close()
-                except Exception:
-                    pass
-        self._rfile = self._wfile = None
-        if self._sock is not None:
-            try:
-                self._sock.close()
-            except Exception:
-                pass
-            self._sock = None
+        self._ls.close()
 
     def __enter__(self) -> "AetherHostClient":
         self.connect()
@@ -314,39 +321,37 @@ class AetherHostClient:
     def __exit__(self, *args: object) -> None:
         self.close()
 
-    def _readline(self) -> str:
-        assert self._rfile is not None
-        line = self._rfile.readline()
-        if not line:
-            raise RuntimeError("Aether connection closed")
-        return line.decode("utf-8", errors="replace").rstrip("\r\n")
-
     def cmd(self, line: str) -> str:
-        """Single-line request → single-line response."""
-        if self._sock is None:
-            self.connect()
-        assert self._wfile is not None
-        self._wfile.write((line.rstrip("\r\n") + "\n").encode("utf-8"))
-        self._wfile.flush()
-        return self._readline()
+        self._ls.write_line(line)
+        return self._ls.readline_str()
 
     def esprec_shot(self) -> list[str]:
-        """Request ESPREC1 shot; return all response lines including header/end."""
-        if self._sock is None:
-            self.connect()
-        assert self._wfile is not None
-        self._wfile.write(b"esprec shot\n")
-        self._wfile.flush()
+        self._ls.write_line("esprec shot")
         lines: list[str] = []
         while True:
-            line = self._readline()
+            line = self._ls.readline_str()
             lines.append(line)
             if line.startswith("ESPREC1_END") or line.startswith("ERR"):
                 break
-            # safety: huge frames
             if len(lines) > 10000:
                 raise RuntimeError("esprec shot runaway")
         return lines
+
+    # esprec.transport.BytePort surface (optional host lib)
+    def write(self, data: bytes) -> int:
+        return self._ls.write_bytes(data)
+
+    def readline(self) -> bytes:
+        return self._ls.readline_bytes(empty_on_timeout=True)
+
+    def read(self, n: int) -> bytes:
+        return b""
+
+    def reset_input_buffer(self) -> None:
+        pass
+
+    def flush(self) -> None:
+        pass
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -358,27 +363,16 @@ def main(argv: list[str] | None = None) -> int:
     args = p.parse_args(argv)
 
     device = AetherDevice(ecu_host=args.ecu_host, ecu_port=args.ecu_port)
-
-    class _Server(socketserver.ThreadingTCPServer):
-        allow_reuse_address = True
-        daemon_threads = True
-
-    handler = type("BoundAetherHandler", (_AetherHandler,), {"device": device})
-    server = _Server((args.host, args.port), handler)
-    port = int(server.server_address[1])
-    print(
-        f"aether-sim listening on {args.host}:{port} "
-        f"ecu={args.ecu_host}:{args.ecu_port} {device.identity()}",
-        flush=True,
-    )
-    try:
-        server.serve_forever()
-    except KeyboardInterrupt:
-        print("aether-sim stopping", flush=True)
-    finally:
-        device.close_ecu()
-        server.shutdown()
-        server.server_close()
+    with AetherServer(device=device, host=args.host, port=args.port) as srv:
+        print(
+            f"aether-sim listening on {srv.endpoint} "
+            f"ecu={args.ecu_host}:{args.ecu_port} {device.identity()}",
+            flush=True,
+        )
+        try:
+            threading.Event().wait()
+        except KeyboardInterrupt:
+            print("aether-sim stopping", flush=True)
     return 0
 
 

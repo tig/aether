@@ -9,11 +9,14 @@ Job **`qemu-identity`** in `.github/workflows/ci.yml`:
 
 1. Build `firmware/` for `esp32s3` with ESP-IDF.
 2. Merge a full flash image.
-3. Run under [tobozo/esp32-qemu-sim](https://github.com/tobozo/esp32-qemu-sim).
-4. Assert serial log contains `fw_name=AETHER` via `run_identity_check.py`.
+3. Install Espressif `qemu-xtensa`.
+4. Run `identity_knock.py`:
+   - start QEMU with UART on TCP
+   - observe boot `fw_name=AETHER` when present
+   - **send CR/LF-framed `identity`** and require exact
+     `fw_name=AETHER fw_version=0.0.1` (AGENTS.md / silico inspect)
 
-Boot-print identity is enough for this gate (metal also answers an `identity`
-knock; interactive UART knock over the action’s log capture is follow-up).
+Boot-print alone is **not** sufficient for a green gate.
 
 ## Local (when IDF + QEMU installed)
 
@@ -21,13 +24,14 @@ knock; interactive UART knock over the action’s log capture is follow-up).
 cd firmware
 idf.py set-target esp32s3
 idf.py build
-# merge flash (size must match sdkconfig flash size; default often 4MB/8MB)
-esptool.py --chip esp32s3 merge_bin --fill-flash-size 8MB -o ../build/qemu_flash.bin @build/flash_args
+esptool.py --chip esp32s3 merge_bin --fill-flash-size 4MB \
+  -o build/qemu_flash.bin @build/flash_args
 
-# idf tools path, or:
-idf.py qemu monitor
-# stop when you see fw_name=AETHER … then:
-python ../sim/qemu/run_identity_check.py /path/to/capture.txt
+python $IDF_PATH/tools/idf_tools.py install qemu-xtensa
+. $IDF_PATH/export.sh
+
+python ../sim/qemu/identity_knock.py \
+  --flash build/qemu_flash.bin --machine esp32s3
 ```
 
 ## esprec on QEMU
@@ -36,7 +40,7 @@ Until metal links esprec and a software/virtual FB backend:
 
 - Use **V-AETHER** `esprec shot` (host sim) for capture CI.
 - When firmware emits ESPREC1 on UART under QEMU, point `esprec snapshot`
-  at the UART TCP port (`socket://` / serial bridge) the same way.
+  at the UART TCP port the same way (`identity_knock` already proves UART TCP).
 
 ## V-ECU from QEMU firmware
 
