@@ -79,6 +79,16 @@ flowchart LR
 
 **Read it as:** Aether talks **USB/UART** to the ECU as a live-data client and (later, human-gated) calibration read/writer; it talks **BT/Wi-Fi** to a host app that hands the log + calibration to a large model and brings back a reviewable patch — never an unsupervised write back to the car. Today, only the **AFR face** block is real (host mockup); every other block is planning spec in the linked issues.
 
+## Don't be dumb
+
+![WARNING — DO NOT DUMB HERE / NO DUMB AREA](docs/images/no-dumb-area.jpg)
+
+Aether is a **monitor, logger, and gauge**. It does not fuel, spark, or make good decisions for you.
+
+If you are bolting anything vehicle-adjacent that law cares about: treat it as **race / track / off-road / non-street** unless you know better. Emissions legality, CARB, Clean Air Act, insurance, and “will this grenade my motor” are not software features.
+
+You own the wiring, the tune you trust, the reading you act on, and the dumb idea you had at 2 a.m. **Anything you do with Aether is your responsibility.** No dumb area.
+
 ## Status
 
 **Spec-learning mockup (this pass).** Host-runnable AFR screen with **simulated** AFR, RPM, and TPS — not live OBD/CAN, not full metal product acceptance. Layers 2–5 above are **planning specs only** (linked issues), not implemented; track readiness honestly by layer rather than assuming the roadmap is shipped.
