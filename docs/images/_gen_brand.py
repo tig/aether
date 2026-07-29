@@ -119,13 +119,29 @@ def make_icon(size: int = 1024) -> Image.Image:
     return icon
 
 
+def _text_width(draw: ImageDraw.ImageDraw, text: str, font) -> int:
+    bbox = draw.textbbox((0, 0), text, font=font)
+    return bbox[2] - bbox[0]
+
+
+def _fit_font(draw: ImageDraw.ImageDraw, text: str, max_w: int, size: int, bold: bool = False, min_size: int = 18):
+    """Shrink font until text fits max_w."""
+    while size >= min_size:
+        font = find_font(size, bold=bold)
+        if _text_width(draw, text, font) <= max_w:
+            return font, size
+        size -= 2
+    return find_font(min_size, bold=bold), min_size
+
+
 def make_social(w: int = 1280, h: int = 640) -> Image.Image:
     social = vertical_gradient(w, h, BG_TOP, BG_BOT)
     social = starfield(social, n=140, seed=11)
 
-    sym_cx = w * 0.28
+    # Symbol on the left; keep clear of the text column
+    sym_cx = w * 0.24
     sym_cy = h * 0.50
-    scale_s = h * 0.72 / 9.1
+    scale_s = h * 0.68 / 9.1
 
     g1 = glow_layer((w, h), sym_cx, sym_cy, scale_s, GLOW, width_ratio=0.28, blur=26, glow_expand=1.5)
     g2 = glow_layer((w, h), sym_cx, sym_cy, scale_s, GLOW2, width_ratio=0.26, blur=12, glow_expand=1.15)
@@ -135,23 +151,33 @@ def make_social(w: int = 1280, h: int = 640) -> Image.Image:
     draw_aether_symbol(d, sym_cx, sym_cy, scale_s, GOLD, width_ratio=0.28)
     draw_aether_symbol(d, sym_cx, sym_cy, scale_s, GOLD_HI, width_ratio=0.12)
 
-    title_font = find_font(108, bold=True)
-    tag_font = find_font(34, bold=False)
-    sub_font = find_font(26, bold=False)
+    # Text column: fixed left start + right margin so nothing clips
+    margin_r = 64
+    tx = int(w * 0.46)
+    max_text_w = w - tx - margin_r
+    ty = int(h * 0.30)
 
     title = "Aether"
-    tx = int(w * 0.52)
-    ty = int(h * 0.34)
+    title_font, _ = _fit_font(d, title, max_text_w, 108, bold=True, min_size=72)
     d.text((tx, ty), title, font=title_font, fill=TEXT)
     bbox = d.textbbox((tx, ty), title, font=title_font)
     tw = bbox[2] - bbox[0]
-    line_y = bbox[3] + 18
-    d.line([(tx, line_y), (tx + min(tw, 280), line_y)], fill=ACCENT_LINE, width=3)
+    line_y = bbox[3] + 16
+    d.line([(tx, line_y), (tx + min(tw, 260), line_y)], fill=ACCENT_LINE, width=3)
 
-    tag = "ECU gauge · logger · remote programmer"
-    d.text((tx, line_y + 28), tag, font=tag_font, fill=MUTED)
-    sub = "Open-source · ESP32 · FOME / rusEFI / Speeduino"
-    d.text((tx, line_y + 78), sub, font=sub_font, fill=(130, 135, 160, 255))
+    # Two short lines instead of one long line that ran off the canvas
+    tag_lines = [
+        "ECU gauge · logger · remote programmer",
+        "Open-source · ESP32 · FOME / rusEFI / Speeduino",
+    ]
+    y = line_y + 28
+    for i, line in enumerate(tag_lines):
+        size = 32 if i == 0 else 24
+        bold = False
+        font, _ = _fit_font(d, line, max_text_w, size, bold=bold, min_size=18)
+        fill = MUTED if i == 0 else (130, 135, 160, 255)
+        d.text((tx, y), line, font=font, fill=fill)
+        y += size + 14
 
     flat = Image.new("RGBA", (w, h), (*BG_TOP, 255))
     return Image.alpha_composite(flat, social)
