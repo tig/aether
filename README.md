@@ -99,6 +99,7 @@ flowchart LR
 | **[specs/spec.md](specs/spec.md)** | Product requirements: mission, device, what makes AFR **useful** (context, units, logging, alarms, …) |
 | **[specs/afr-face.md](specs/afr-face.md)** | **AFR screen only** — layout, dial, type, on-screen RPM/TPS |
 | **[specs/lexicon.md](specs/lexicon.md)** | Face phrase book |
+| **[specs/sim-bench.md](specs/sim-bench.md)** | Software-only V-ECU + V-AETHER + orch (calibration / identity / ESPREC) |
 | [spec.md](spec.md) | Short seed pointer → `specs/` |
 | *planned* `specs/inputs.md` | Live serial/USB ECU channel model — spec lives in [issue #5](https://github.com/tig/aether/issues/5) until implementation ships it |
 | *planned* `specs/logging.md` | Log format, markers, LogWorks/MLV export — spec lives in [issue #3](https://github.com/tig/aether/issues/3) until implementation ships it |
@@ -117,6 +118,28 @@ Each issue below carries a full planning spec in its body — that spec becomes 
 | [#3](https://github.com/tig/aether/issues/3) | Log format strategy: MLVLG canonical, LogWorks/MLV/CSV/JSON export | → `specs/logging.md` |
 | [#4](https://github.com/tig/aether/issues/4) | Full ECU calibration read/write (tables, curves, scalars) + burn validation | → `specs/maps.md` |
 | [#5](https://github.com/tig/aether/issues/5) | Real-time ECU data formats & serial protocols (USB-first, FOME pilot) | → `specs/inputs.md` |
+
+## Software bench (foundation for cal / HIL)
+
+Pure-software stack so PR work (maps, serial, esprec eyes) can validate **without
+USB metal or a real FOME**:
+
+| Piece | Path | Role |
+|-------|------|------|
+| Virtual ECU | `sim/ecu` | RAM + flash pages, burn, power-cycle (AESP) |
+| Virtual Aether | `sim/aether` | identity, `ecu.*`, **ESPREC1 shot** |
+| Portable C ECU client | `include/gcu/ecu_client.h` + `src/ecu_client.c` | Metal-bound client; host TCP bench |
+| Orchestrator | `sim/orch` | §17-shaped burn soak |
+| QEMU twin | `sim/qemu` | Real `firmware/` identity under Espressif QEMU (CI) |
+
+```text
+python -m pytest sim/tests -q
+python -m sim.orch all --out sim/out
+cmake -S host -B build/host && cmake --build build/host --target host_test
+```
+
+See [sim/README.md](sim/README.md).
+
 
 ## Hardware
 
@@ -212,6 +235,7 @@ Requires ESP-IDF. Metal product face on the AMOLED is **out of gate** for this b
 | `specs/afr-face.md` | AFR screen contract |
 | `specs/lexicon.md` | Phrase book |
 | `mockup/` | Host AFR face mockup + unit tests |
+| `sim/` | Software V-ECU + V-AETHER + orch + QEMU helpers |
 | `firmware/` | ESP-IDF app (plate) |
-| `host/` | C host tests |
+| `host/` | C host tests (+ `ecu_tcp_bench`) |
 | `install/` | Update-path notes |
