@@ -1,10 +1,13 @@
 # Aether — product requirements
 
-**Rev 0.1 · July 2026**
+**Rev 0.2 · July 2026**  
+**Writing mode:** Technical (STE bias). See machine guide *writing-in-tigs-voice.md*.
 
-Aether is a **serial & CANbus ECU monitor, logger, and real-time AFR gauge** for a pocket edge device. This document is the **product-level** contract: mission, target hardware, what makes the system *useful* (not just a raw oxygen number), and how other specs fit together.
+Aether is a serial and CANbus ECU monitor, logger, and real-time AFR gauge on a pocket edge device.
 
-Screen-specific layout lives elsewhere (see [Spec map](#spec-map)). Do not dump face geometry into this file.
+This file is the product-level contract. It states mission, target hardware, and value requirements.
+
+Screen layout lives in [afr-face.md](afr-face.md). Do not put face geometry in this file.
 
 ---
 
@@ -13,27 +16,27 @@ Screen-specific layout lives elsewhere (see [Spec map](#spec-map)). Do not dump 
 | Spec | Scope |
 |------|--------|
 | **[specs/spec.md](spec.md)** (this file) | Product mission, hardware target, value requirements (HW + SW) |
-| **[specs/afr-face.md](afr-face.md)** | **AFR screen only** — layout, dial, type, RPM/TPS on that face |
+| **[specs/afr-face.md](afr-face.md)** | AFR screen only: layout, dial, type, RPM/TPS on that face |
 | **[specs/lexicon.md](lexicon.md)** | Face and product phrase book |
 | *future* `specs/logging.md` | Logging, review, export, analysis |
 | *future* `specs/setup.md` | First-run, profiles, fuels, alarms config |
 | *future* `specs/inputs.md` | Serial / CAN / sensor wiring and identity |
 
-Root [spec.md](../spec.md) is a short seed pointer into this tree (for silico-style “product truth at HEAD”).
+Root [spec.md](../spec.md) is a short pointer into this tree.
 
 ---
 
 ## 1. Mission
 
-On the workbench and in the vehicle, Aether should:
+Aether must:
 
-1. **Talk** to the ECU and related sensors over **serial** and/or **CANbus** (and dedicated wideband inputs where fitted).
-2. **Log** time-aligned streams for later review.
-3. Show **glanceable, high-value** mixture and context on a tiny AMOLED — not a naked AFR digit with no context.
+1. Exchange data with the ECU and related sensors over serial and/or CANbus (and dedicated wideband inputs when fitted).
+2. Log time-aligned channel streams for later review.
+3. Show mixture and context on a small AMOLED so the operator can read them at a glance.
 
-A raw AFR number is **low-value**. High-value systems turn continuous oxygen measurement into **actionable insight** for diagnosis and tuning. The requirements below separate a mediocre gauge from a tool people actually rely on.
+A bare AFR digit without context has low value. Aether must present AFR with engine context and keep logs that support diagnosis and tuning.
 
-**Honest status of this repo:** host mockup + plate bootstrap prove the AFR **screen** and simulated context (RPM/TPS). Live protocols, dual wideband metal, and full logger analysis are product intent; track readiness honestly by layer.
+**Status of this checkout:** The host mockup and plate bootstrap prove the AFR screen and simulated RPM/TPS. Live protocols, dual wideband on metal, and full logger analysis are product intent. Track each layer in §6.
 
 ---
 
@@ -41,20 +44,20 @@ A raw AFR number is **low-value**. High-value systems turn continuous oxygen mea
 
 | Fact | Value |
 |------|--------|
-| Role | General Contact Unit (GCU) — one shippable edge product |
+| Role | General Contact Unit (GCU); one shippable edge product |
 | Board class | ESP32-S3 1.8″ AMOLED (Amazon ASIN [B0F242GFHK](https://www.amazon.com/dp/B0F242GFHK) / ESP32-S3-Touch-AMOLED-1.8) |
 | MCU | ESP32-S3R8 (typical of class) |
 | Display | 1.8″ AMOLED capacitive touch, native **368 × 448** |
 | Panel / touch | SH8601 (QSPI), FT3168 (I2C) |
 | USB | Type-C (CDC / flash / power) |
-| Hard controls | Physical buttons beside USB (PWR/BOOT-class) — product UI is **landscape** with those keys on the **top** edge; on-screen MODE/SEL are **labels**, not soft buttons |
-| Runtime (v1 path) | **C / ESP-IDF** via silico `gcu-c` plate |
+| Hard controls | Physical buttons beside USB (PWR/BOOT-class). Product UI is landscape with those keys on the top edge. On-screen MODE/SEL are labels, not soft buttons. |
+| Runtime (v1 path) | C / ESP-IDF via silico `gcu-c` plate |
 | Host spine | [Silico](https://github.com/tig/silico); sibling layout with local clone pin |
 
 ### Product UI orientation
 
-- **Logical face:** **448 × 368** landscape (native panel rotated so USB + hard buttons are on top).
-- Host mockup and metal UI should match that orientation unless a later setup mode explicitly allows portrait.
+- Logical face: **448 × 368** landscape (native panel rotated so USB and hard buttons are on top).
+- Host mockup and metal UI must use that orientation unless a later setup mode allows portrait.
 
 ### Open hardware questions (do not invent answers)
 
@@ -71,29 +74,29 @@ A raw AFR number is **low-value**. High-value systems turn continuous oxygen mea
 
 **Hardware**
 
-- Must accept or generate **synchronized** inputs for at least: **engine speed (RPM)**, **load** (MAP, **TPS**, or calculated load), and preferably **fuel pressure** (or differential fuel pressure on boosted engines).
-- **Dual (or more) wideband channels** strongly preferred for bank-to-bank or cylinder-group comparison.
-- Clean, low-latency outputs where Aether is a source: analog 0–5 V (or 0–1 V), **CAN**, or **serial** so the signal can be logged alongside ECU data.
+- Aether must accept or generate synchronized inputs for at least: engine speed (**RPM**), **load** (MAP, **TPS**, or calculated load), and preferably fuel pressure (or differential fuel pressure on boosted engines).
+- Dual (or more) wideband channels are strongly preferred for bank-to-bank or cylinder-group comparison.
+- When Aether is a source, it must offer clean, low-latency outputs: analog 0–5 V (or 0–1 V), **CAN**, or **serial**, so the signal can log with ECU data.
 
 **Software / display logic**
 
-- Real-time AFR/λ presented **with** corresponding **RPM** and **load** (TPS/MAP/load) — or mapped onto fuel-table axes when reviewing logs.
-- Logged data **time-aligned** so AFR can be overlaid on RPM, load, TPS, fuel pressure, knock, EGT, etc.
-- Ability to show **short-term fuel trims** (or closed-loop correction %) when available — measured λ can look perfect while the base table is wrong.
+- Aether must present real-time AFR/λ with corresponding **RPM** and **load** (TPS/MAP/load), or map them onto fuel-table axes when the operator reviews logs.
+- Logged data must be time-aligned so AFR can overlay RPM, load, TPS, fuel pressure, knock, EGT, and similar channels.
+- When the ECU exposes them, Aether must be able to show short-term fuel trims (or closed-loop correction %). Measured λ can look correct while the base table is wrong.
 
-**Current mockup slice:** AFR face shows live **RPM** and **TPS** under the dial (simulated). Full multi-channel sync is still product intent.
+**Current mockup slice:** The AFR face shows live **RPM** and **TPS** under the dial (simulated). Full multi-channel sync is product intent.
 
 ### 3.2 Units and scaling flexibility
 
 **Hardware / controller**
 
-- Native support for both **Lambda** and **AFR**.
-- User-selectable stoichiometric factor (14.7, 14.1, 9.8, custom, …) so the same sensor works across gasoline, E10, E85, methanol, race fuels.
-- Prefer outputting **raw lambda** (or one consistent scale) so downstream tools do not invent conversion errors.
+- Native support for both **lambda** and **AFR**.
+- Operator-selectable stoichiometric factor (14.7, 14.1, 9.8, custom, …) so the same sensor works across gasoline, E10, E85, methanol, and race fuels.
+- Prefer output of raw lambda (or one consistent scale) so downstream tools do not invent conversion errors.
 
 **Software**
 
-- Instant switch between Lambda and AFR views.
+- Instant switch between lambda and AFR views.
 - Ability to lock the **display** to gasoline-scale AFR even on ethanol blends (tuner familiarity) while computing internally in λ.
 - Configurable display range (e.g. 10–18 AFR or 0.70–1.30 λ) so the useful window fills the dial.
 
@@ -101,62 +104,62 @@ A raw AFR number is **low-value**. High-value systems turn continuous oxygen mea
 
 **Hardware (screen)**
 
-- High-contrast AMOLED readable in sun and night (auto-dimming or user brightness).
-- Prefer **large digital value + analog-style arc/bar** over pure digits alone.
+- High-contrast AMOLED readable in sun and night (auto-dimming or operator brightness).
+- Prefer a large digital value plus an analog-style arc/bar over digits alone.
 - Configurable color coding: green ≈ on target, yellow ≈ approaching limits, red ≈ dangerous lean under load (or rich under defined conditions).
-- Mounting / orientation that keeps the face in primary or secondary FOV without head gymnastics.
+- Mounting and orientation that keep the face in primary or secondary FOV.
 
 **Software**
 
-- Configurable color thresholds by **operating condition** (idle vs WOT lean limits differ).
-- Optional **target band** visualization (how far from desired for current load/RPM).
-- Minimal clutter — critical info (current value + safety status) readable in **&lt; 0.5 s**.
+- Configurable color thresholds by operating condition (idle vs WOT lean limits differ).
+- Optional target-band visualization (distance from desired mixture for current load/RPM).
+- Minimal clutter. Critical info (current value + safety status) must be readable in under 0.5 s.
 
-**Screen layout detail** for the main AFR page: [afr-face.md](afr-face.md).
+Screen layout for the main AFR page: [afr-face.md](afr-face.md).
 
 ### 3.3.1 Legibility floors (hard rules on this device)
 
-This is a **~1.8″** face. Text that looks fine when zoomed on a desktop can be unusable in the car.
+This face is about 1.8″. Text that looks fine when zoomed on a desktop can be unusable in the car.
 
 **Label floor**
 
-- The font size used for **banner button labels** (MODE / SEL) is the base floor for face chrome text.
-- **Legends** (value legend, dial legend, RPM/TPS captions, and any similar captions) must be **at least 25% larger** than that banner size. That larger size is the **legend minimum** — do not shrink legends below it.
-- If a string cannot fit at its required floor without clipping, overlapping, or abbreviating into gibberish, **it does not belong on the face** — redesign the layout or drop the label.
+- The font size for **banner button labels** (MODE / SEL) is the base floor for face chrome text.
+- **Legends** (value legend, dial legend, RPM/TPS captions, and similar captions) must be at least 25% larger than that banner size. That larger size is the legend minimum. Do not shrink legends below it.
+- If a string cannot fit at its required floor without clipping, overlapping, or abbreviating into gibberish, it must not stay on the face. Redesign the layout or drop the label.
 
 **Value floors (do not regress)**
 
-- **Primary value** (the dominant live number on a screen — on the AFR screen, the AFR **value**) must **never be smaller** than the current shipping primary size. Reference at 448×368: **≥ 82 device pixels** high (mockup-tuned). Later screens with a different primary number (e.g. a dedicated RPM page) must keep their primary at least this large unless the product explicitly re-baselines.
-- **Secondary values** (supporting live numbers on the same face — on the AFR screen, **RPM** and **TPS**/WOT) must **never be smaller** than the current shipping secondary size. Reference at 448×368: **≥ 53 device pixels** high.
-- **Legends** (value legend, dial legend, RPM/TPS captions) are **intentionally larger than banner MODE/SEL** — at least **+25%** over banner label size. That is the legend floor, not a bug.
-- Primary must remain **clearly larger** than secondary; both must remain **clearly larger** than the label floor.
-- Always judge legibility at **physical size** (mockup ~1.8″ diagonal), not only at full-screen browser zoom.
-- Shrinking primary/secondary to “make room” for more chrome is a **spec violation**, not a fix.
+- **Primary value** (dominant live number on a screen; on the AFR screen, the AFR **value**) must never be smaller than the current shipping primary size. Reference at 448×368: ≥ 82 device pixels high (mockup-tuned). Later screens with a different primary number must keep their primary at least this large unless the product explicitly re-baselines.
+- **Secondary values** (supporting live numbers on the same face; on the AFR screen, **RPM** and **TPS**/WOT) must never be smaller than the current shipping secondary size. Reference at 448×368: ≥ 53 device pixels high.
+- **Legends** must stay at least 25% larger than banner label size. That is the legend floor.
+- Primary must remain clearly larger than secondary. Both must remain clearly larger than the label floor.
+- Always judge legibility at physical size (mockup ~1.8″ diagonal), not only at full-screen browser zoom.
+- Shrinking primary or secondary to make room for more chrome is a **spec violation**.
 
 ### 3.4 Temporal features (response, history, statistics)
 
 **Hardware / controller**
 
-- Sensor + path fast enough for tip-in and gear-change transients (ideally &lt;30–50 ms end-to-end where possible).
-- User-adjustable **filtering / smoothing** on the displayed stream (raw for diagnosis, filtered while driving).
+- Sensor plus path must be fast enough for tip-in and gear-change transients. Target end-to-end latency under 30–50 ms where the path allows.
+- Operator-adjustable filtering / smoothing on the displayed stream (raw for diagnosis, filtered while driving).
 
 **Software**
 
 - Peak-hold and valley-hold with manual or automatic reset.
 - Rolling min / max / average over selectable windows (1 s, 5 s, full pull, …).
 - Ability to mark or flag events (lean spike, tip-in, shift cut) for later review.
-- Configurable **display** update rate independent of **log** rate (driver sees a usable number; logger keeps high resolution).
+- Configurable display update rate independent of log rate (operator sees a usable number; logger keeps high resolution).
 
 ### 3.5 Warning and safety systems
 
 **Hardware**
 
 - Configurable visual (and preferably audible) alarm for lean under load.
-- Clear **sensor validity / heater / error** indication so a bad reading is never trusted.
+- Clear sensor validity / heater / error indication so a bad reading is never trusted.
 
 **Software**
 
-- Multi-condition alarms (e.g. λ &gt; 0.92 while MAP &gt; 90 kPa and RPM &gt; 3500).
+- Multi-condition alarms (e.g. λ > 0.92 while MAP > 90 kPa and RPM > 3500).
 - Persistent or latching warnings that require acknowledgment.
 - Optional soft limits (color / flash) before hard alarms.
 
@@ -175,13 +178,13 @@ This is a **~1.8″** face. Text that looks fine when zoomed on a desktop can be
 - Session management: multiple runs, notes, weather/conditions metadata.
 - Simple playback with cursors for scrubbing a pull.
 
-*Detail for this area belongs in a future `specs/logging.md`.*
+Detail for this area belongs in a future `specs/logging.md`.
 
 ### 3.7 Multi-sensor and system integration
 
 **Hardware**
 
-- At least **two** independent wideband channels with independent calibration and display (preferred).
+- At least two independent wideband channels with independent calibration and display (preferred).
 - Clean integration with standalone ECUs, loggers, and phone apps (**CAN preferred** over analog where possible).
 
 **Software**
@@ -192,11 +195,11 @@ This is a **~1.8″** face. Text that looks fine when zoomed on a desktop can be
 
 ### 3.8 Usability and reliability
 
-- Startup that does not require special driver rituals under normal use.
+- Startup must not require special driver rituals under normal use.
 - Clear “heating / not valid yet” state.
 - Robustness to automotive electrical noise and voltage swing.
-- Saved/restored **profiles** (fuel, car, tuning goal).
-- Minimal driver workload once configured.
+- Saved/restored profiles (fuel, car, tuning goal).
+- Minimal operator workload once configured.
 
 ---
 
@@ -204,24 +207,24 @@ This is a **~1.8″** face. Text that looks fine when zoomed on a desktop can be
 
 ### Must-have for any serious system
 
-- Contextual data (**RPM + load** alongside AFR)
-- Lambda + configurable AFR
-- Fast response with adjustable filtering
-- Peak/min/max and basic logging
-- Configurable lean-under-load warning
-- Readable, color-coded display
+- Contextual data (**RPM + load** alongside AFR).
+- Lambda + configurable AFR.
+- Fast response with adjustable filtering.
+- Peak/min/max and basic logging.
+- Configurable lean-under-load warning.
+- Readable, color-coded display.
 
 ### Highly valuable
 
-- Dual-channel support
-- Full synchronized logging + graphing against fuel-table axes
-- Condition-based alarms
-- Fuel pressure correlation
-- Easy export and correction-factor tools
+- Dual-channel support.
+- Full synchronized logging + graphing against fuel-table axes.
+- Condition-based alarms.
+- Fuel pressure correlation.
+- Easy export and correction-factor tools.
 
 ### Nice-to-have / differentiating
 
-- Advanced analytics, automatic lean-spike detection, multi-session comparison, companion apps, cloud sync, pressure-compensated readings, etc.
+- Advanced analytics, automatic lean-spike detection, multi-session comparison, companion apps, cloud sync, pressure-compensated readings, and similar features.
 
 Systems that meet **must-have** and **highly valuable** items turn oxygen measurement into a diagnostic and tuning instrument. Everything else is secondary.
 
@@ -242,8 +245,8 @@ Systems that meet **must-have** and **highly valuable** items turn oxygen measur
 
 | Layer | Status |
 |-------|--------|
-| Product requirements (this doc) | **In progress** |
-| Host AFR face mockup + unit tests | **In scope / present** |
+| Product requirements (this doc) | In progress |
+| Host AFR face mockup + unit tests | In scope / present |
 | Live CAN / serial ECU path | Not done |
 | Metal AMOLED product face | Not done |
 | Durable multi-channel logger + review UI | Not done |
@@ -267,4 +270,4 @@ Systems that meet **must-have** and **highly valuable** items turn oxygen measur
 | `mockup/` | Host-runnable AFR face (simulated AFR, RPM, TPS) |
 | `docs/images/afr-face-mockup.gif` | Visual target for the AFR screen |
 | `firmware/`, `host/` | C plate (identity, host tests) |
-| [README.md](../README.md) | Human entry |
+| [README.md](../README.md) | Human entry (Narrative vision + Technical setup) |

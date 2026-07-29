@@ -1,8 +1,9 @@
 # Aether lexicon
 
-**Rev 0.3 · July 2026** (draft — product + face + live/log/calibration)
+**Rev 0.4 · July 2026** (draft — product + face + live/log/calibration)  
+**Writing mode:** Technical (STE bias). This file is the preferred-term list for Technical mode.
 
-Canonical terms for **user-facing copy**, **specs**, and **agent/implementer prose**. Prefer industry wording (TunerStudio / MegaLogViewer / MegaSquirt-family, FOME/rusEFI, Innovate LogWorks) over invented slang.
+Canonical terms for user-facing copy, specs, and implementer prose. Prefer industry wording (TunerStudio / MegaLogViewer / MegaSquirt-family, FOME/rusEFI, Innovate LogWorks) over invented slang.
 
 | Doc | Role |
 |-----|------|

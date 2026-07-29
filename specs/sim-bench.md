@@ -1,26 +1,21 @@
 # Software bench — virtual ECU + virtual Aether + orchestrator
 
-**Rev 0.2 · July 2026**  
-**Status:** Implemented host sim (`sim/`) + portable C ECU client + ESPREC1 on
-V-AETHER + QEMU **identity knock** CI job (not boot-print alone).  
+**Rev 0.3 · July 2026**  
+**Writing mode:** Technical (STE bias).  
+**Status:** Host sim (`sim/`) is implemented. Portable C ECU client is implemented. ESPREC1 runs on V-AETHER. CI runs a QEMU **identity knock** (not boot-print alone).  
 **Related:** issue #4 (calibration R/W + burn), #5 (serial session),
 [tig/esprec](https://github.com/tig/esprec) (framebuffer capture).
 
 ## 1. Purpose
 
-Before metal firmware talks to a real ECU, Aether needs a **software-only**
-loop that can prove:
+Before metal firmware talks to a real ECU, the software bench must prove these facts without real USB or a real FOME:
 
-1. Calibration pages live in **RAM** and **flash** with an explicit **burn**.
-2. Unburned RAM is lost on **power-cycle**; burned data survives.
-3. Backup → golden → mutate → burn → verify → **restore** (§17-shaped).
-4. The Aether **host link** answers `identity` like metal.
-5. A **synthetic framebuffer** is capturable via **ESPREC1** (`esprec shot`)
-   without a panel — same wire as esprec / future QEMU eyes.
-6. A **portable C ECU client** (metal-bound) talks AESP over an injected
-   transport (host TCP today, UART later).
-
-Real USB and a real FOME are **not** required for this gate.
+1. Calibration pages live in **RAM** and **flash**. **Burn** makes flash match RAM.
+2. Unburned RAM is lost on **power-cycle**. Burned data survives power-cycle.
+3. The sequence backup → golden → mutate → burn → verify → **restore** works (§17-shaped).
+4. The Aether **host link** answers `identity` the same way metal does.
+5. A **synthetic framebuffer** can be captured with **ESPREC1** (`esprec shot`) without a panel. The wire matches esprec / future QEMU eyes.
+6. A **portable C ECU client** (metal-bound) talks AESP over an injected transport (host TCP today, UART later).
 
 ## 2. Components
 

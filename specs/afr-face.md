@@ -1,10 +1,11 @@
 # Aether AFR screen — face specification
 
-**Rev 0.4 · July 2026**  
-**Scope:** The **AFR screen only** (layout, dial, type, on-screen RPM/TPS, banner, swipe).  
-**Not in scope here:** product-wide logging architecture, setup flows, multi-channel policy, alarms product design — see [spec.md](spec.md).
+**Rev 0.5 · July 2026**  
+**Writing mode:** Technical (STE bias).  
+**Scope:** The AFR screen only (layout, dial, type, on-screen RPM/TPS, banner, swipe).  
+**Not in scope here:** product-wide logging architecture, setup flows, multi-channel policy, alarms product design. See [spec.md](spec.md).
 
-**Status:** Host mockup is the working visual reference for this screen. Implement on metal later; do not invent a second layout in chat.
+**Status:** The host mockup is the working visual reference for this screen. Implement on metal later. Do not invent a second layout in chat.
 
 Phrase book: [lexicon.md](lexicon.md).  
 Product requirements: [spec.md](spec.md).  
@@ -12,23 +13,25 @@ Reference implementation: `mockup/` (Python mapper + SVG + HTML canvas).
 
 ---
 
-## 1. Goal (what this screen is for)
+## 1. Goal
 
-A landscape **wideband-style AFR page** on the Aether AMOLED:
+This screen is a landscape wideband-style AFR page on the Aether AMOLED.
 
-- Operator reads the AFR **value** at a glance, with **lambda** to its right.
-- **Dial** segments show mixture band (green / amber / red); **dial legend** marks 8–20.
-- **Banner** names physical **MODE** / **SEL** and shows **logging** via a LED **status indicator**.
-- **Aux readouts** show live **RPM** and **TPS** under the dial (context on the same page).
-- **Swipe indicator** hints at other pages (logging, setup, … — those pages have their own specs later).
+The operator must be able to:
+
+1. Read the AFR **value** at a glance, with **lambda** to its right.
+2. Read mixture band from **dial** segments (green / amber / red). The **dial legend** marks 8–20.
+3. See physical **MODE** / **SEL** names in the **banner**, and logging state via a LED **status indicator**.
+4. Read live **RPM** and **TPS** in the **aux readouts** under the dial.
+5. See the **swipe indicator** for other pages (those pages have their own specs later).
 
 **Reference motion (host mockup):**
 
 ![Aether AFR face host mockup](../docs/images/afr-face-mockup.gif)
 
-Rebuild to match this feel and structure. After layout changes, prove with `python -m mockup.capture` and inspect the PNGs — not code-only claims.
+Rebuild to match this structure. After layout changes, run `python -m mockup.capture` and inspect the PNGs. Do not claim the face is correct from code alone.
 
-Not a pixel clone of a commercial 52 mm gauge. Simulated AFR/RPM/TPS is acceptable for host mockups; live sources are product-level ([spec.md](spec.md)).
+This screen is not a pixel clone of a commercial 52 mm gauge. Simulated AFR/RPM/TPS is acceptable for host mockups. Live sources are product-level ([spec.md](spec.md)).
 
 ---
 
@@ -170,7 +173,7 @@ See `mockup/afr_gauge.py`.
 
 ## 6. Typography and placement (intent)
 
-This screen is **tiny** (≈1.8″). Type must stay **legible at physical size**. Prefer hierarchy over magic ratios; `mockup/` is a tuned reference.
+This screen is about 1.8″. Type must stay legible at physical size. Prefer hierarchy over magic ratios. `mockup/` is a tuned reference.
 
 ### 6.1 Hierarchy
 

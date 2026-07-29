@@ -36,6 +36,11 @@ Operator manners: **Bedside** via `bedside.toml` (sibling silico vendor paths). 
 
 If product `spec.md` is way under-specified or contradictory, follow silico root **Spec interview mode** (`silico/knowledge/spec-interview.md`). Interactive path (build while the spec improves; re-run later) is valid. Do not invent domain moat. Product truth is **this** checkout + the operator.
 
+### Writing mode
+
+- **`specs/**`, `install/**`, procedures, acceptance checklists:** Technical literature (STE bias). See machine guide `writing-in-tigs-voice.md` → *Technical literature (STE bias)*. Prefer lexicon Preferred terms. Short active sentences. **must** / **must not**. No first-person story in requirement bodies.
+- **README vision / product story:** Narrative (Tig voice). Do not rewrite vision into STE.
+
 ## Host gate
 
 ```text
