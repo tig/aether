@@ -1,5 +1,7 @@
 # Aether
 
+<img src="docs/images/aether-icon-512.png" width="128" alt="Aether icon" />
+
 **Aether** is a complete solution for AI tuning of cars with open-source ECUs (FOME / rusEFI / Speeduino / MegaSquirt-class). It turns cheap (< $50) off-the-shelf **ESP32** hardware into a kick-ass AFR gauge and logger that, once plugged into the ECU's USB port, is also a **remote programmer**. Aether is designed to make it easy for AIs such as Claude Code, Grok Build, Cursor, etc... to read the logs and the full calibration and figure out the optimal way to fix a tuning problem or find real performance improvements.
 
 This repository is a product GCU (General Contact Unit) used with [Silico](https://github.com/tig/silico). 
