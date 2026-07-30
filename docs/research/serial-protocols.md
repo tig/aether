@@ -1,8 +1,8 @@
 # Research notes — serial-class ECU realtime protocols
 
 **Date:** 2026-07-28 (OSS leverage map §12 added same day)  
-**Purpose:** Non-normative survey backing [specs/inputs.md](../../specs/inputs.md) / issue [#5](https://github.com/tig/aether/issues/5).  
-**Not product contract** — prefer the spec for decisions (including §15 Implementation leverage).
+**Purpose:** Non-normative survey backing [specs/comms.md](../../specs/comms.md) / issue [#5](https://github.com/tig/aether/issues/5).  
+**Not product contract.** Where this note disagrees with [specs/comms.md](../../specs/comms.md) on wire facts, **comms.md wins**.
 
 ---
 
@@ -20,12 +20,23 @@ Key facts:
 
 - **Poll only** on serial — no unsolicited realtime stream.
 - Half-duplex: do not write while ECU is transmitting.
-- **Wrapper:** big-endian size + payload + big-endian CRC32 (public-domain crc32).
-- Response adds **flag** (0x00 OK, 0x01 realtime, 0x80 underrun, 0x82 CRC failure, 0x85 busy, …).
-- Realtime: **`A`** → full outpc; selective **`g`** on some MS3; **`r`** for table/offset reads.
-- Identity: **`Q`** format string, **`S`** version/copyright string.
-- **Compatibility mode:** naked single-byte `A`/`Q`/`S` without CRC for older dashes.
+- **Wrapper:** big-endian size + payload + big-endian CRC32 (IEEE / zlib-compatible).
+- Response adds **flag** (0x00 OK, 0x01 realtime, 0x80 underrun, 0x82 CRC failure, 0x85 busy, …). FOME burn has been observed as **0x04** with successful post-burn match — do not assume only 0x00/0x01 mean success.
+- Realtime: **`A`** → full outpc on classic MS; FOME/rusEFI use **`O` + offset/count** for och (see INI / comms.md).
+- Identity: **`Q`** / **`S`** strings; FOME pilot uses framed or bare **`S`** for signature and **`V`** for version.
+- **Compatibility mode:** naked single-byte `A`/`Q`/`S` without CRC for older dashes / some FOME identity knocks.
 - Doc encourages **CAN broadcast** for dash-only devices — out of scope for #5 but relevant later.
+
+### 2.1 CRC scope — FOME HIL (do not ship the wrong one)
+
+The MS 2014 PDF is often read as “CRC over size + payload.” **FOME proteus_f7 (2026.06.03 class), wire-validated:**
+
+| Direction | CRC covers |
+|-----------|------------|
+| Request | **payload only** (size field excluded) |
+| Response | **flag \|\| payload** (size field excluded) |
+
+Size-inclusive CRC is **ignored** by this ECU (silent drop). Implement and golden-test the HIL scope. Normative table: [specs/comms.md](../../specs/comms.md) §6.
 
 INI files remain the authority for och field layout and `ochBlockSize`.
 
@@ -45,7 +56,7 @@ Sources: Speeduino secondary serial wiki; community `comms` notes; [speeduino-se
 | Secondary serial | Dash/logger can use second port while TS uses primary |
 | Wi-Fi | Sims/tools use TCP serial (example port **5000** on one sim) |
 
-Good **CI / secondary** target because of fixed layouts + simulators on ESP32. **Operator P0 is FOME over USB** on the current Aether prototype (see `specs/inputs.md` rev 0.2).
+Good **CI / secondary** target because of fixed layouts + simulators on ESP32. **Operator P0 is FOME over USB** on the current Aether prototype (see `specs/comms.md`).
 
 ---
 
@@ -127,14 +138,16 @@ USB and wired UART usually win headroom; BT needs lower caps.
 
 ---
 
-## 10. Decision snapshot (see inputs.md for normative text)
+## 10. Decision snapshot (see comms.md for normative text)
 
 1. **Family:** TunerStudio-compatible MS / rusEFI / FOME serial (CRC + legacy).  
 2. **P0 dialect:** **FOME** over **USB** on the **current Aether prototype**.  
 3. **P1:** Speeduino fixed och (CI/sim) + broader rusEFI packs + field UART.  
 4. **Transports:** USB P0 (FOME cable) → UART → BT → Wi-Fi.  
 5. **Internal model:** λ-centric channels + quality + int64 ms timestamps.  
-6. **CAN:** deferred to reserved section in inputs.md.
+6. **Masters:** AETHER vs HOST_TOOL on ecu_link (agent = AETHER + host service).  
+7. **CAN:** deferred to reserved appendix in comms.md.  
+8. **CRC:** FOME HIL scope in §2.1 / comms.md — not size-inclusive.
 
 ---
 
@@ -176,7 +189,7 @@ Survey of **existing open-source** that Aether can use for P0 USB+FOME live chan
 | **usb_host_vcp** (+ chip drivers) | https://components.espressif.com/components/espressif/usb_host_vcp · esp-usb `host/class/cdc/` | **Apache-2.0** | C | metal | maintained | small service + per-chip drivers (CP210x, FTDI, CH34x) | Example `cdc_acm_vcp`: register VCP drivers then open generically — needed if FOME path is **USB–UART dongle** not native CDC | Not every clone chip; VID/PID quirks table still product work |
 | **TinyUSB** | https://github.com/hathach/tinyusb | **MIT** | C | metal | production | mid-size stack | Via **esp_tinyusb** component for **USB device CDC** (Aether as COM to PC for sim/host bridge #1) | Host CDC on TinyUSB is secondary to Espressif host class drivers for S3 product path |
 | **esp_tinyusb** | https://components.espressif.com/components/espressif/esp_tinyusb | Apache-2.0 (Espressif wrapper; upstream TinyUSB MIT) | C | metal | production | wraps TinyUSB | `tusb_cdc_acm_init` for device-mode COM; console redirect helpers | Device role only in typical Aether use |
-| **ESP-IDF `esp_crc` / zlib CRC32** | IDF `esp_rom_crc32` / [zlib](https://github.com/madler/zlib) `crc32` | Apache-2.0 (IDF) / **Zlib** | C | metal | production | tiny | MS **newserial** uses CRC32 over size+payload (BE). Prefer IDF ROM CRC or a **tiny public-domain table** (MS protocol doc references public-domain style CRC32) | Must match MS big-endian CRC placement exactly; unit-test against goldens |
+| **ESP-IDF `esp_crc` / zlib CRC32** | IDF `esp_rom_crc32` / [zlib](https://github.com/madler/zlib) `crc32` | Apache-2.0 (IDF) / **Zlib** | C | metal | production | tiny | IEEE CRC32 BE on the wire. **FOME HIL:** CRC over **payload only** (req) and **flag\|\|payload** (rsp) — not size-inclusive. Prefer IDF ROM CRC; unit-test against `spike/goldens/` / comms.md | Wrong CRC scope → silent ECU ignore |
 | **ESP-IDF UART driver** | IDF `driver/uart` | Apache-2.0 | C | metal | production | built-in | Same `serial_link` under UART as under CDC for field harness (P0–P1) | Level shift / baud profile not in OSS |
 
 ### 12.3 Metal / protocol source — **GPL reference-only** (do not port code)
