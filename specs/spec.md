@@ -95,24 +95,30 @@ An external wideband front end is **not** required, because primary-class ECUs a
 | Role | Face development and firmware bring-up **only** |
 | Limit | Exposes 7 GPIO + I2C + UART + USB pads. CAN, SD, and a 12 V front end together exceed that budget, and none are on board. **Not a shipping candidate** |
 
-### 2.3 Integrated candidate (evaluation)
+### 2.3 Integrated candidate (on the bench — evaluation)
 
 | Fact | Value |
 |------|--------|
-| Board | **Waveshare ESP32-S3-Touch-LCD-4.3B**; case SKU `ESP32-S3-Touch-LCD-4.3B-BOX` |
+| Board | **Waveshare ESP32-S3-Touch-LCD-4.3B**, cased (Waveshare SKU `ESP32-S3-Touch-LCD-4.3B-BOX`; also sold as ASIN [B0DD6VLH1Y](https://www.amazon.com/dp/B0DD6VLH1Y)) |
 | MCU | ESP32-S3, 16 MB flash, 8 MB PSRAM, Wi-Fi 4 + BLE 5 |
 | Display | 4.3″ IPS 800 × 480, 5-point capacitive touch |
-| CAN | On board, CAN 2.0, GPIO15 TX / GPIO16 RX, screw terminal, **termination switch off by default** |
-| Storage | TF card slot (SPI, CS via CH422G expander) |
+| CAN | On board, CAN 2.0. **GPIO15 = TX, GPIO16 = RX.** Screw terminal. **Termination switch fitted, off by default** |
+| Storage | TF card slot, SPI — GPIO11 MOSI, GPIO12 SCK, GPIO13 MISO, **CS via the CH422G expander (EXIO4)** |
 | Power | **7–36 V DC** terminal, plus Type-C 5 V and a LiPo header with charging |
-| Spare I/O | RS485 terminal; optoisolated 5–36 V digital in and out |
+| Spare I/O | RS485 terminal (GPIO43/44); optoisolated 5–36 V digital in and out |
+| Car wiring | 12 V (ignition-switched), ground, CAN HIGH, CAN LOW. **Four screw terminals, no soldering** |
 
-This board satisfies every line of §2.1 with no soldering. Two properties **must** be verified before it is adopted:
+This board satisfies every line of §2.1 as shipped. Two constraints follow from the silicon and the panel:
 
-1. **Sun legibility.** IPS is not AMOLED. The face must be judged in a car, in daylight, at physical size.
-2. **Face portability.** The AFR face is tuned to 448 × 368. Legibility floors in §3.3.1 are stated in device pixels at that geometry and **must** be re-derived, not scaled blindly, for 800 × 480.
+- **One CAN bus.** The ESP32-S3 has a single TWAI controller. Adding a second transceiver does not add a second bus. Where an ECU runs two buses, this board must tap one.
+- **The termination switch is the node-role control.** It **must** be off when the bus already has two terminated nodes, and on only when the ECU is the sole other node. Measure before deciding (60 Ω / 120 Ω / open).
 
-Alternatives that also satisfy §2.1: M5Stack CoreS3 or Tab5 with a Grove **CANBus Unit (CA-IS3050G)** — solderless, isolated transceiver — plus a 12 V supply. Adoption of any board is an [issue #12](https://github.com/tig/aether/issues/12) decision, not a §2 assertion.
+Status stays **evaluation** until both of these pass:
+
+1. **Sun legibility.** IPS is not AMOLED. The face must be judged in a car, in daylight, at physical size. This is the single largest risk to adoption.
+2. **Face portability.** The AFR face is tuned to 448 × 368. Legibility floors in §3.3.1 are stated in device pixels at that geometry and **must** be re-derived for 800 × 480, not scaled blindly.
+
+Adoption is an [issue #12](https://github.com/tig/aether/issues/12) decision, not a §2 assertion. Boards that also satisfy §2.1 — for example an M5Stack controller with a Grove CANBus Unit and a 12 V supply — remain valid alternatives if evaluation fails.
 
 ### 2.4 Runtime
 
