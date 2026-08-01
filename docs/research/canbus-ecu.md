@@ -183,7 +183,7 @@ The wiki names the reason directly: a CAN frame carries 8 bytes, and Speeduino's
 | **CAN FD** | **Not supported** — FD frames are treated as errors | **Not supported** |
 | Transceiver | **Not integrated** — external part required (TJA105x class) | **Not integrated** |
 | Filtering | 1 mask filter (single 29-bit or dual 16-bit), plus range filtering | same family |
-| Bus-off | Software-initiated recovery; hardware reconnects only after 129 consecutive recessive bits | same |
+| Bus-off | Software-initiated recovery (`twai_node_recover()`), then the hardware rejoins only after **128 occurrences of 11 consecutive recessive bits** — ISO 11898-1; Espressif documents 129 sequences of 11 bits for this part. Either way ≈ 1,400 bit times ≈ **2.8 ms at 500 kbit/s**, not 129 bit times | same |
 | Listen-only | Supported (no ACK, no TX) | supported |
 
 Board-level notes:

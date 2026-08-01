@@ -71,18 +71,20 @@ Aether **must not**:
 
 ### 2.1 Integration rule (normative)
 
-A shippable Aether **must** be assembled from **off-the-shelf hardware with no soldering and no custom PCB**. Wiring to the car must be limited to screw terminals or keyed connectors: 12 V, ground, CAN HIGH, CAN LOW.
+A shippable Aether **must** be assembled from **off-the-shelf hardware with no soldering and no custom PCB**. Where more than one module is used, they **must** interconnect by keyed cable — never by soldered wires or flying leads. Wiring to the car **must** be limited to screw terminals or keyed connectors: 12 V, ground, CAN HIGH, CAN LOW.
 
-Therefore the target board **must** provide, on one part:
+A **single part** that satisfies the table below is preferred, because every added module is another connector, another mounting problem, and another supply to protect. Multi-module assemblies are permitted where they meet the solderless rule.
 
 | Requirement | Reason |
 |-------------|--------|
 | Display + capacitive touch | §3.3 face |
-| **CAN transceiver on board**, with **selectable termination, off by default** | §1.1 primary transport. A third terminator on a healthy two-node bus degrades it |
+| **CAN transceiver**, with **selectable termination, off by default** | §1.1 primary transport. A third terminator on a healthy two-node bus degrades it |
 | **SD card** slot | §3.6. At 30 channels × 4 bytes × 50 Hz a log consumes ≈ 21 MB/h; 16 MB of internal flash holds under an hour |
-| **Wide DC input (12 V nominal)** with automotive tolerance | The device is powered by the car, not by a bench USB port |
+| **12 V nominal supply that survives an automotive supply** | See below. This is not the same as a wide DC input range |
 | Enclosure available | §3.8 |
-| ESP32-S3 class or better | §2.4 performance floor |
+| ESP32-S3 class or better | §2.6 performance floor |
+
+**Power tolerance is a test result, not a datasheet line.** A stated 7–36 V input range establishes the nominal operating window only. It does **not** establish survival of load dump, crank dips, or the transients in ISO 7637-2, which §3.8 requires. A candidate board **must** be validated against those before it is qualified, and an external automotive front end (TVS clamp, series protection) is an acceptable way to meet the requirement provided it stays solderless.
 
 An external wideband front end is **not** required, because primary-class ECUs already publish λ (§1.1). Aether may add one later; it must not be a condition of v1.
 
@@ -108,17 +110,20 @@ An external wideband front end is **not** required, because primary-class ECUs a
 | Spare I/O | RS485 terminal (GPIO43/44); optoisolated 5–36 V digital in and out |
 | Car wiring | 12 V (ignition-switched), ground, CAN HIGH, CAN LOW. **Four screw terminals, no soldering** |
 
-This board satisfies every line of §2.1 as shipped. Two constraints follow from the silicon and the panel:
+This board satisfies the §2.1 **interface and assembly** requirements as shipped — display, CAN with a termination switch, SD, enclosure, and car wiring by screw terminal with no soldering. It does **not** yet satisfy the §2.1 power requirement: 7–36 V is its operating range, not evidence of transient survival.
+
+Two constraints follow from the silicon and the panel:
 
 - **One CAN bus.** The ESP32-S3 has a single TWAI controller. Adding a second transceiver does not add a second bus. Where an ECU runs two buses, this board must tap one.
 - **The termination switch is the node-role control.** It **must** be off when the bus already has two terminated nodes, and on only when the ECU is the sole other node. Measure before deciding (60 Ω / 120 Ω / open).
 
-Status stays **evaluation** until both of these pass:
+Status stays **evaluation** until all three of these pass:
 
-1. **Sun legibility.** IPS is not AMOLED. The face must be judged in a car, in daylight, at physical size. This is the single largest risk to adoption.
+1. **Sunlight and night legibility.** §3.3 states this as a performance requirement, and an IPS panel is not assumed to meet it. The face must be judged in a car, at physical size, in direct sun and at night. This is the largest risk to adoption.
 2. **Face portability.** The AFR face is tuned to 448 × 368. Legibility floors in §3.3.1 are stated in device pixels at that geometry and **must** be re-derived for 800 × 480, not scaled blindly.
+3. **Automotive power.** Behavior through crank dips and load-dump-class transients on a real vehicle supply, per §2.1. If the board alone does not survive, an external solderless front end is an acceptable remedy.
 
-Adoption is an [issue #12](https://github.com/tig/aether/issues/12) decision, not a §2 assertion. Boards that also satisfy §2.1 — for example an M5Stack controller with a Grove CANBus Unit and a 12 V supply — remain valid alternatives if evaluation fails.
+Adoption is an [issue #12](https://github.com/tig/aether/issues/12) decision, not a §2 assertion. Multi-module alternatives that meet the solderless rule — for example an M5Stack controller with a Grove CANBus Unit and a protected 12 V supply — remain valid if evaluation fails.
 
 ### 2.4 Runtime
 
@@ -155,10 +160,22 @@ Dual-core 240 MHz, 8 MB PSRAM, 16 MB flash, Wi-Fi + BLE, no graphics accelerator
 
 **Hardware**
 
-- Aether must accept synchronized inputs for at least: engine speed (**RPM**), **load** (MAP, **TPS**, or calculated load), and **λ**.
-- On a primary-class ECU (§1.1) all of these arrive on one CAN broadcast, already time-aligned by the ECU. Aether must consume that broadcast rather than duplicate the sensors.
+- Aether must accept inputs for at least: engine speed (**RPM**), **load** (MAP, **TPS**, or calculated load), and **λ**.
+- On a primary-class ECU (§1.1) these arrive over the ECU's CAN broadcast. Aether must consume that broadcast rather than duplicate the sensors.
 - Dual wideband channels are preferred where the ECU publishes both.
 - Aether must not require an external wideband front end for v1 (§2.1).
+
+**Sample assembly (normative)**
+
+The broadcast is **not one frame**. On a FOME/rusEFI-class ECU the face channels are spread across several CAN IDs — RPM, TPS, MAP, and λ sit in four different frames within the same transmit cycle. Frames can arrive at different times, and any one of them can be lost or delayed independently.
+
+Therefore:
+
+1. Aether must record a **receive timestamp per frame**, not per assembled sample.
+2. Aether must track **freshness per channel**, and must expose the age of the oldest contributing channel with each assembled sample.
+3. Aether must define a **snapshot rule** that bounds the skew between channels combined into one sample. A sample whose channels exceed that bound must be marked degraded.
+4. Alarms and logged rows must not combine a stale channel with a fresh one silently. A lean-under-load alarm derived from new RPM and old λ is a false reading, and §3.5 forbids trusting it.
+5. Aether must not assume the ECU time-aligned the channels for it. The ECU aligns its own sampling; the wire does not preserve that alignment.
 
 **Software / display logic**
 
@@ -186,7 +203,7 @@ Dual-core 240 MHz, 8 MB PSRAM, 16 MB flash, Wi-Fi + BLE, no graphics accelerator
 
 **Hardware (screen)**
 
-- High-contrast AMOLED readable in sun and night (auto-dimming or operator brightness).
+- **Sunlight readable and night usable.** This is a performance requirement, not a panel-technology requirement: the face must stay legible in direct sun and must dim enough not to blind at night (auto-dimming or operator brightness). AMOLED meets it by contrast; a sufficiently bright IPS panel may also meet it. Any candidate must be judged in a car, at physical size, in both conditions — not from a datasheet.
 - Prefer a large digital value plus an analog-style arc/bar over digits alone.
 - Configurable color coding: green ≈ on target, yellow ≈ approaching limits, red ≈ dangerous lean under load (or rich under defined conditions).
 - Mounting and orientation that keep the face in primary or secondary FOV.
