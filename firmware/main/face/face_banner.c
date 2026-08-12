@@ -62,8 +62,9 @@ void face_banner_init(lv_obj_t *afr_parent, lv_obj_t *chrome_parent) {
   lv_obj_set_style_bg_opa(s_log_led, LV_OPA_COVER, 0);
   lv_obj_align(s_log_led, LV_ALIGN_CENTER, 0, 0);
 
-  /* Units button on screen chrome — outside tileview scroll. */
+  /* Units control on the screen — outside the tileview scroll chain. */
   s_units_btn = lv_button_create(chrome_parent);
+  lv_obj_remove_flag(s_units_btn, LV_OBJ_FLAG_SCROLL_ON_FOCUS);
   lv_obj_set_size(s_units_btn, 220, FACE_BANNER_H);
   lv_obj_align(s_units_btn, LV_ALIGN_TOP_RIGHT, 0, 0);
   lv_obj_set_style_bg_opa(s_units_btn, LV_OPA_TRANSP, 0);
@@ -74,9 +75,6 @@ void face_banner_init(lv_obj_t *afr_parent, lv_obj_t *chrome_parent) {
   lv_obj_set_style_pad_all(s_units_btn, 0, 0);
   lv_obj_set_style_radius(s_units_btn, 0, 0);
   lv_obj_set_ext_click_area(s_units_btn, 12);
-  /* Do not let gestures bubble into the tileview under us. */
-  lv_obj_remove_flag(s_units_btn, LV_OBJ_FLAG_GESTURE_BUBBLE);
-  lv_obj_remove_flag(s_units_btn, LV_OBJ_FLAG_EVENT_BUBBLE);
   lv_obj_add_event_cb(s_units_btn, on_units_tap, LV_EVENT_CLICKED, NULL);
 
   s_lbl_units = lv_label_create(s_units_btn);

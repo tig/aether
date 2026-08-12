@@ -321,12 +321,8 @@ void app_main(void) {
 
   gcu_init(&st, hal);
 
-  /* NVS + esp_wifi / esp_netif (credentials restored; radio starts if enabled). */
-  if (!aether_wifi_init()) {
-    printf("wifi: init failed (settings still show off)\n");
-    fflush(stdout);
-  }
-
+  /* RGB bounce buffers need internal DMA RAM. Bring the panel up before
+   * esp_wifi so STA RX/TX buffers cannot starve lcd_rgb_panel_alloc. */
   printf("display: init RGB 4.3B + LVGL + esprec shadow (30s AFR demo)\n");
   fflush(stdout);
   if (!display_init()) {
@@ -354,6 +350,12 @@ void app_main(void) {
   }
 
   afr_face_init();
+
+  /* NVS + esp_wifi / esp_netif after the RGB panel owns its bounce RAM. */
+  if (!aether_wifi_init()) {
+    printf("wifi: init failed (settings still show off)\n");
+    fflush(stdout);
+  }
 
   afr_face_state_t face_st;
   memset(&face_st, 0, sizeof face_st);

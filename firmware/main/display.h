@@ -24,11 +24,14 @@ bool display_lvgl_init(void);
 /* Push logical RGB565 face to the panel (1:1, native endian). */
 void display_present(const uint16_t *face_rgb565);
 
-/* PSRAM logical face buffer (also used as LVGL full-frame draw buffer). */
+/* RGB panel framebuffer (800×480 RGB565). esprec reads this. */
 uint16_t *display_face_buffer(void);
 
 /* PSRAM RGB565 buffer for LVGL canvas (dial bezel). Caller owns lifetime. */
 uint16_t *display_alloc_canvas(int w, int h);
+
+/* Yield so the RGB bounce ISR / Wi-Fi / TWDT can run during long CPU work. */
+void display_yield(void);
 
 /* Optional: sample GT911 outside LVGL. Prefer LVGL indev read_cb (used by
  * display_touch_lvgl_init) — do not also call this immediately before
