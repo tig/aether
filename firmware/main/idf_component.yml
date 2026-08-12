@@ -1,0 +1,6 @@
+## Waveshare ESP32-S3-Touch-LCD-4.3B / 4.3B-BOX — RGB panel is built into IDF.
+## LVGL product face (v9) — flush via display.c RGB path.
+## GT911 touch via Espressif driver (CH422G handles RST on this board).
+dependencies:
+  lvgl/lvgl: "^9.2.0"
+  espressif/esp_lcd_touch_gt911: "^1"

@@ -1,7 +1,7 @@
 [product]
 name = "Aether"
 fw_name = "AETHER"
-fw_version = "0.0.1"
+fw_version = "0.7.4-4.3b"
 
 [runtime]
 language = "c"
@@ -18,7 +18,7 @@ product_defaults = "include/gcu/defaults.h"
 
 [hal]
 # Only these stems may #include freertos / esp_* / driver headers.
-allow_device_headers = ["hal_board"]
+allow_device_headers = ["hal_board", "display", "wifi_sta", "main"]
 
 [deploy]
 mode = "idf-flash"

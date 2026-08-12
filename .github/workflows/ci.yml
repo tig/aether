@@ -68,6 +68,11 @@ jobs:
         uses: actions/checkout@v4
         with:
           path: gcu
+      - name: Checkout esprec (firmware shot component)
+        uses: actions/checkout@v4
+        with:
+          repository: tig/esprec
+          path: esprec
       - name: Build firmware + QEMU identity knock
         uses: espressif/esp-idf-ci-action@v1
         with:

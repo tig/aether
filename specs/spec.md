@@ -16,7 +16,10 @@ Screen layout lives in [afr-face.md](afr-face.md). Do not put face geometry in t
 | Spec | Scope |
 |------|--------|
 | **[specs/spec.md](spec.md)** (this file) | Product mission, hardware target, value requirements (HW + SW) |
-| **[specs/afr-face.md](afr-face.md)** | AFR screen only: layout, dial, type, RPM/TPS on that face |
+| **[specs/afr-face.md](afr-face.md)** | AFR page: layout, dial, type, RPM/TPS |
+| **[specs/pages.md](pages.md)** | Multi-page UI: nav, SETTINGS, ABOUT, Wi‑Fi config |
+| **[specs/afr-demo.md](afr-demo.md)** | Drive demo — 30 s loop (host and metal) |
+| **[specs/face-elements.md](face-elements.md)** | Element build order + esprec scene harness |
 | **[specs/lexicon.md](lexicon.md)** | Face and product phrase book |
 | **[specs/comms.md](comms.md)** | ECU + host comms: client path, agent bridge, tool passthrough, built-in topology |
 | *future* `specs/logging.md` | Logging, review, export, analysis |
@@ -24,6 +27,14 @@ Screen layout lives in [afr-face.md](afr-face.md). Do not put face geometry in t
 | [docs/research/canbus-ecu.md](../docs/research/canbus-ecu.md) | **Non-normative** — how open ECUs implement CAN; evidence behind §1.1 and §2 |
 
 Root [spec.md](../spec.md) is a short pointer into this tree.
+
+### Metal UI stills (4.3B prototype)
+
+| Page | Capture |
+|------|---------|
+| AFR | ![AFR](../docs/images/page-afr.png) |
+| SETTINGS | ![SETTINGS](../docs/images/page-settings.png) |
+| ABOUT | ![ABOUT](../docs/images/page-about.png) |
 
 ---
 
@@ -38,7 +49,7 @@ Aether must:
 
 A bare AFR digit without context has low value. Aether must present AFR with engine context and keep logs that support diagnosis and tuning.
 
-**Status of this checkout:** The host mockup and plate bootstrap prove the AFR screen and simulated RPM/TPS. Live protocols and full logger analysis are product intent. Track each layer in §6.
+**Status of this checkout:** The host mockup and a metal LVGL face on the §2.3 4.3B board prove the AFR screen and simulated RPM/TPS. Live protocols and full logger analysis are product intent. Track each layer in §6.
 
 ### 1.1 Target ECU class (normative)
 
@@ -137,6 +148,7 @@ Adoption is an [issue #12](https://github.com/tig/aether/issues/12) decision, no
 ### 2.5 Product UI orientation
 
 - Logical face: **448 × 368** landscape on the §2.2 development board (native panel rotated so USB and hard buttons are on top).
+- Logical face on the §2.3 4.3B prototype: **800 × 480** landscape (native RGB). Metal stills in `docs/images/page-*.png` are truth for that board.
 - Host mockup and metal UI must use landscape unless a later setup mode allows portrait.
 - Face layout code must not hard-code one panel geometry. §2.1 permits any qualifying board, and §2.3 changes the aspect ratio.
 
@@ -346,11 +358,12 @@ Systems that meet **must-have** and **highly valuable** items turn oxygen measur
 |-------|--------|
 | Product requirements (this doc) | In progress |
 | Host AFR face mockup + unit tests | In scope / present |
+| Metal face on 4.3B + multi-page + touch | **Prototype present** — see `docs/images/page-*.png` |
+| Wi‑Fi station + SETTINGS config | **Prototype present** |
 | CAN broadcast decode (face + logger) | Not done — [#12](https://github.com/tig/aether/issues/12) hardware, [#5](https://github.com/tig/aether/issues/5) decode |
 | Calibration read/write + burn over CAN or serial | Not done — [#4](https://github.com/tig/aether/issues/4) |
 | Serial ECU path (USB / UART) | Not done — [#5](https://github.com/tig/aether/issues/5) |
 | Integrated hardware selection (§2.1) | Not done — [#12](https://github.com/tig/aether/issues/12) |
-| Metal product face | Not done |
 | Durable multi-channel logger + review UI | Not done |
 
 ---
@@ -374,6 +387,7 @@ Still open:
 | Path | Role |
 |------|------|
 | `mockup/` | Host-runnable AFR face (simulated AFR, RPM, TPS) |
-| `docs/images/afr-face-mockup.gif` | Visual target for the AFR screen |
-| `firmware/`, `host/` | C plate (identity, host tests) |
+| `docs/images/page-*.png` | Metal UI stills (AFR / SETTINGS / ABOUT) |
+| `docs/images/afr-face-mockup.gif` | Host motion reference (may lag panel size) |
+| `firmware/`, `host/` | C plate (identity, host tests, 4.3B LVGL face) |
 | [README.md](../README.md) | Human entry (Narrative vision + Technical setup) |

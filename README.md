@@ -6,9 +6,9 @@
 
 This repository is a product GCU (General Contact Unit) used with [Silico](https://github.com/tig/silico). 
 
-| Host AFR face mockup | Bootstrap board: Waveshare ESP32-S3-Touch-AMOLED-1.8 |
+| Host AFR face mockup | Metal AFR page on Waveshare 4.3B |
 |:---:|:---:|
-| ![Aether AFR face host mockup](docs/images/afr-face-mockup.gif) | <img src="docs/images/hardware/waveshare-esp32-s3-touch-amoled-1.8.jpg" width="260" alt="Waveshare ESP32-S3-Touch-AMOLED-1.8 board"> |
+| ![Aether AFR face host mockup](docs/images/afr-face-mockup.gif) | <img src="docs/images/page-afr.png" width="360" alt="Aether AFR face on Waveshare ESP32-S3-Touch-LCD-4.3B"> |
 
 ## Vision
 
@@ -18,7 +18,7 @@ This repository is a product GCU (General Contact Unit) used with [Silico](https
 
 Dial + value + lambda + RPM/TPS on a small touch AMOLED, legible in a car at a glance ([specs/afr-face.md](specs/afr-face.md)). **This layer is the part that exists today**, as a mockup (GIF above).
 
-The **current bootstrap board** is the **Waveshare ESP32-S3-Touch-AMOLED-1.8** — full specs in [Hardware](#hardware) below. (The unit actually on the bench was bought on Amazon under the **UeeKKoo** label [ASIN B0F242GFHK] — same ESP32-S3R8/SH8601/FT3168 design, just a rebrand at roughly double Waveshare's direct price; Waveshare's own docs/example code apply either way.) It's not the only board this is meant for: the product intent is to run on a **wide range of off-the-shelf hardware**, not lock to a single SKU. Several other **self-contained** boards — some ESP32-S3, some meaningfully more powerful ESP32-P4 or RP2350 designs — share enough of the same display/touch stack or exceed this board's specs outright that portability is realistic rather than aspirational — see the candidate tables in [Hardware](#hardware).
+The **current prototype board** is the **Waveshare ESP32-S3-Touch-LCD-4.3B-BOX** (SKU 28141) — 4.3″ 800×480 RGB IPS, onboard CAN, SD, 7–36 V. Full specs in [Hardware](#hardware). The earlier bootstrap was the 1.8″ AMOLED class. Product intent is still a **wide range of off-the-shelf hardware**, not one locked SKU — see the candidate tables in [Hardware](#hardware).
 
 ### Live ECU Link
 
@@ -79,7 +79,7 @@ flowchart LR
     App -.->|"human confirms → RAM write → burn"| Calib
 ```
 
-**Read it as:** Aether talks **USB/UART** to the ECU as a live-data client and (later, human-gated) calibration read/writer; it talks **BT/Wi-Fi** to a host app that hands the log + calibration to a large model and brings back a reviewable patch — never an unsupervised write back to the car. Today, only the **AFR face** block is real (host mockup); every other block is planning spec in the linked issues.
+**Read it as:** Aether talks **USB/UART** to the ECU as a live-data client and (later, human-gated) calibration read/writer; it talks **BT/Wi-Fi** to a host app that hands the log + calibration to a large model and brings back a reviewable patch — never an unsupervised write back to the car. Today the **AFR face** is real as a host mockup **and** as a metal LVGL prototype on the 4.3B (simulated mixture). Live ECU, logger, and calibration blocks are planning spec in the linked issues.
 
 ## Don't be dumb
 
@@ -93,16 +93,16 @@ You own the wiring, the tune you trust, the reading you act on, and the dumb ide
 
 ## Status
 
-**Spec-learning mockup (this pass).** Host-runnable AFR screen with **simulated** AFR, RPM, and TPS — not live OBD/CAN, not full metal product acceptance. Layers 2–5 above are **planning specs only** (linked issues), not implemented; track readiness honestly by layer rather than assuming the roadmap is shipped.
+**Metal UI prototype on Waveshare 4.3B-BOX**, plus the host AFR mockup. Mixture/RPM/TPS are **simulated** — not live OBD/CAN. Layers 2–5 above are **planning specs only** (linked issues). Track readiness honestly by layer.
 
 | Layer | Status |
 |-------|--------|
 | AFR face (host mockup) | **In scope / present** |
-| Live serial/USB ECU link ([#5](https://github.com/tig/aether/issues/5)) | Planning spec only |
+| Metal face on 4.3B (AFR / SETTINGS / ABOUT + Wi‑Fi) | **Prototype present** |
+| Live serial/USB ECU link ([#5](https://github.com/tig/aether/issues/5)) | Planning spec only — contract in [specs/comms.md](specs/comms.md) |
 | Always-on multi-channel logging ([#2](https://github.com/tig/aether/issues/2), [#3](https://github.com/tig/aether/issues/3)) | Planning spec only |
 | Full calibration R/W + burn validation ([#4](https://github.com/tig/aether/issues/4)) | Planning spec only |
 | Wireless LLM host bridge ([#1](https://github.com/tig/aether/issues/1)) | Idea / not designed in a spec yet |
-| Metal AMOLED product face | Not done |
 
 ## Specs
 
@@ -110,11 +110,13 @@ You own the wiring, the tune you trust, the reading you act on, and the dumb ide
 |----------|--------|
 | **[specs/spec.md](specs/spec.md)** | Product requirements: mission, device, what makes AFR **useful** (context, units, logging, alarms, …) |
 | **[specs/afr-face.md](specs/afr-face.md)** | **AFR screen only** — layout, dial, type, on-screen RPM/TPS |
+| **[specs/pages.md](specs/pages.md)** | Multi-page UI — nav, SETTINGS, ABOUT, Wi‑Fi |
+| **[specs/afr-demo.md](specs/afr-demo.md)** | 30 s drive demo |
 | **[specs/lexicon.md](specs/lexicon.md)** | Face phrase book |
+| **[specs/comms.md](specs/comms.md)** | ECU + host comms contract |
 | **[specs/sim-bench.md](specs/sim-bench.md)** | Software-only V-ECU + V-AETHER + orch (calibration / identity / ESPREC) |
 | [spec.md](spec.md) | Short seed pointer → `specs/` |
 | [docs/research/canbus-ecu.md](docs/research/canbus-ecu.md) | **Non-normative study** — how FOME / rusEFI / Speeduino / MegaSquirt do CANbus, and whether CAN can be Aether's primary channel |
-| *planned* `specs/inputs.md` | Live serial/USB ECU channel model — spec lives in [issue #5](https://github.com/tig/aether/issues/5) until implementation ships it |
 | *planned* `specs/logging.md` | Log format, markers, LogWorks/MLV export — spec lives in [issue #3](https://github.com/tig/aether/issues/3) until implementation ships it |
 | *planned* `specs/maps.md` (or `tune.md`) | Full calibration R/W, ATM/AMP/TunePatch, burn validation — spec lives in [issue #4](https://github.com/tig/aether/issues/4) until implementation ships it |
 
@@ -130,7 +132,7 @@ Each issue below carries a full planning spec in its body — that spec becomes 
 | [#2](https://github.com/tig/aether/issues/2) | Always be logging, with drive tagging and voice/button event marks | → `specs/logging.md` |
 | [#3](https://github.com/tig/aether/issues/3) | Log format strategy: MLVLG canonical, LogWorks/MLV/CSV/JSON export | → `specs/logging.md` |
 | [#4](https://github.com/tig/aether/issues/4) | Full ECU calibration read/write (tables, curves, scalars) + burn validation | → `specs/maps.md` |
-| [#5](https://github.com/tig/aether/issues/5) | Real-time ECU data formats & serial protocols (USB-first, FOME pilot) | → `specs/inputs.md` |
+| [#5](https://github.com/tig/aether/issues/5) | Real-time ECU data formats & serial protocols (USB-first, FOME pilot) | → [specs/comms.md](specs/comms.md) |
 
 ## Software bench (foundation for cal / HIL)
 
@@ -156,9 +158,22 @@ See [sim/README.md](sim/README.md).
 
 ## Hardware
 
-### Primary board: Waveshare ESP32-S3-Touch-AMOLED-1.8
+### Current prototype: Waveshare ESP32-S3-Touch-LCD-4.3B-BOX
 
-First target while the software is still being learned/built; not the only board Aether intends to support (see [Vision](#vision)):
+Metal LVGL face (AFR / SETTINGS / ABOUT) runs on this board. Evaluation candidate per [specs/spec.md](specs/spec.md) §2.3 — not a shipping claim.
+
+| Item | Detail |
+|------|--------|
+| Board | **Waveshare ESP32-S3-Touch-LCD-4.3B-BOX** ([docs](https://docs.waveshare.com/ESP32-S3-Touch-LCD-4.3B)) — SKU 28141 |
+| Chip | ESP32-S3-WROOM-1-N16R8, 16 MB flash, 8 MB OPI PSRAM |
+| Display | 4.3″ IPS **800×480** RGB565, capacitive GT911 touch, CH422G expander |
+| I/O | Onboard **CAN 2.0** (GPIO15 TX / GPIO16 RX, screw terminal, termination switch off by default), RS-485, TF slot, 7–36 V DC, Type-C |
+| UI orientation | Landscape **800×480** (native RGB) |
+| Prior bootstrap | 1.8″ AMOLED 368×448 class — still a supported candidate |
+
+### Prior bootstrap: Waveshare ESP32-S3-Touch-AMOLED-1.8
+
+Face-development board only ([specs/spec.md](specs/spec.md) §2.2). Not a shipping candidate (no CAN, no SD, no 12 V front end):
 
 | Item | Detail |
 |------|--------|
@@ -238,7 +253,7 @@ silico inspect --port COMx
 silico deploy --port COMx --yes --verify --reset
 ```
 
-Requires ESP-IDF. Metal product face on the AMOLED is **out of gate** for this bootstrap.
+Requires ESP-IDF. Metal face on the 4.3B is in `firmware/` (LVGL + RGB). Host gate does not flash.
 
 ## Layout
 
@@ -246,9 +261,13 @@ Requires ESP-IDF. Metal product face on the AMOLED is **out of gate** for this b
 |------|------|
 | `specs/spec.md` | Product requirements |
 | `specs/afr-face.md` | AFR screen contract |
+| `specs/pages.md` | Multi-page UI |
+| `specs/afr-demo.md` | Drive demo |
+| `specs/comms.md` | ECU + host comms |
 | `specs/lexicon.md` | Phrase book |
 | `mockup/` | Host AFR face mockup + unit tests |
 | `sim/` | Software V-ECU + V-AETHER + orch + QEMU helpers |
-| `firmware/` | ESP-IDF app (plate) |
+| `firmware/` | ESP-IDF app (4.3B LVGL face + identity) |
+| `tools/esprec_elements/` | esprec scene harness |
 | `host/` | C host tests (+ `ecu_tcp_bench`) |
 | `install/` | Update-path notes |
