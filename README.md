@@ -113,6 +113,7 @@ You own the wiring, the tune you trust, the reading you act on, and the dumb ide
 | **[specs/lexicon.md](specs/lexicon.md)** | Face phrase book |
 | **[specs/sim-bench.md](specs/sim-bench.md)** | Software-only V-ECU + V-AETHER + orch (calibration / identity / ESPREC) |
 | [spec.md](spec.md) | Short seed pointer → `specs/` |
+| [docs/research/canbus-ecu.md](docs/research/canbus-ecu.md) | **Non-normative study** — how FOME / rusEFI / Speeduino / MegaSquirt do CANbus, and whether CAN can be Aether's primary channel |
 | *planned* `specs/inputs.md` | Live serial/USB ECU channel model — spec lives in [issue #5](https://github.com/tig/aether/issues/5) until implementation ships it |
 | *planned* `specs/logging.md` | Log format, markers, LogWorks/MLV export — spec lives in [issue #3](https://github.com/tig/aether/issues/3) until implementation ships it |
 | *planned* `specs/maps.md` (or `tune.md`) | Full calibration R/W, ATM/AMP/TunePatch, burn validation — spec lives in [issue #4](https://github.com/tig/aether/issues/4) until implementation ships it |
