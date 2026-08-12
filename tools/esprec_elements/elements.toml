@@ -1,0 +1,191 @@
+# Aether face — esprec element registry (framework for future tests).
+# Normative scene ids match specs/face-elements.md and firmware face/face_state.h
+
+[meta]
+product = "aether"
+face = "afr"
+logical_w = 448
+logical_h = 368
+protocol = "esprec1"
+shot_command = "esprec shot"
+# After face scene: allow one product frame (~50 ms tick × few)
+settle_s = 0.25
+
+# Full-face ROI for now (per-element crop is a later optimization).
+[roi.full]
+x = 0
+y = 0
+w = 448
+h = 368
+
+[roi.banner]
+x = 0
+y = 0
+w = 448
+h = 44
+
+[roi.dial]
+x = 0
+y = 44
+w = 448
+h = 206
+
+[roi.primary]
+# Center aperture band (approx); refine when primary is nailed.
+x = 72
+y = 70
+w = 300
+h = 140
+
+[roi.aux]
+x = 0
+y = 250
+w = 448
+h = 80
+
+[roi.chrome]
+x = 0
+y = 330
+w = 448
+h = 38
+
+# ---- Elements (build order) ------------------------------------------------
+
+[[elements]]
+id = "banner"
+order = 1
+module = "face_banner"
+roi = "banner"
+checklist = [
+  "Full-width strip distinct from dial black",
+  "MODE left, inset from rounded glass",
+  "Inverse units right (LAMBDA when AFR mode)",
+  "Log LED center: bright red on, dim red off — not gray",
+]
+
+[[elements]]
+id = "dial"
+order = 2
+module = "face_dial"
+roi = "dial"
+checklist = [
+  "LEDs L→top→R only, open bottom",
+  "Outer corners owned (no black gutters BL/BR)",
+  "Progressive lit prefix; unlit dim visible",
+  "Scale 8·11·13·15·17·20 inside aperture, not on LEDs",
+]
+
+[[elements]]
+id = "primary"
+order = 3
+module = "face_primary"
+roi = "primary"
+checklist = [
+  "One mixture number + one unit",
+  "Primary ≥10 mm (≥127 px); unit ≥2.75 mm",
+  "No overlap with scale marks",
+  "Invalid shows dashed, empty needle",
+]
+
+[[elements]]
+id = "aux"
+order = 4
+module = "face_aux"
+roi = "aux"
+checklist = [
+  "RPM left, TPS/WOT right",
+  "Secondary ≥6 mm (≥77 px)",
+  "No ghosted/double digits",
+  "WOT label at full throttle (not 100%)",
+]
+
+[[elements]]
+id = "chrome"
+order = 5
+module = "face_chrome"
+roi = "chrome"
+checklist = [
+  "RPM/TPS captions flush bottom with small gap",
+  "Swipe dots center, same bottom row, small gap",
+  "No caption/dot overlap",
+]
+
+[[elements]]
+id = "compose"
+order = 6
+module = "face_root"
+roi = "full"
+checklist = [
+  "All elements present without overlap",
+  "30 s demo per afr-demo.md",
+]
+
+# ---- Scenes (device: face scene <id>) ---------------------------------------
+
+[[scenes]]
+id = "banner_afr"
+element = "banner"
+note = "AFR mode, logging off"
+state = { mixture_valid = 1, afr = 14.7, use_lambda = 0, rpm = 0, tps = 0, logging = 0, page = 0, redline_warn = 0 }
+
+[[scenes]]
+id = "banner_lambda"
+element = "banner"
+note = "Lambda mode → banner shows AFR"
+state = { mixture_valid = 1, afr = 14.7, use_lambda = 1, rpm = 2400, tps = 18, logging = 0, page = 0, redline_warn = 0 }
+
+[[scenes]]
+id = "banner_log_on"
+element = "banner"
+note = "Logging LED on"
+state = { mixture_valid = 1, afr = 14.7, use_lambda = 0, rpm = 2400, tps = 18, logging = 1, page = 0, redline_warn = 0 }
+
+[[scenes]]
+id = "dial_off"
+element = "dial"
+state = { mixture_valid = 0, afr = 14.7, use_lambda = 0, rpm = 0, tps = 0, logging = 0, page = 0, redline_warn = 0 }
+
+[[scenes]]
+id = "dial_stoich"
+element = "dial"
+state = { mixture_valid = 1, afr = 14.7, use_lambda = 0, rpm = 2400, tps = 18, logging = 1, page = 0, redline_warn = 0 }
+
+[[scenes]]
+id = "dial_rich"
+element = "dial"
+state = { mixture_valid = 1, afr = 11.5, use_lambda = 0, rpm = 3000, tps = 40, logging = 1, page = 0, redline_warn = 0 }
+
+[[scenes]]
+id = "primary_stoich_afr"
+element = "primary"
+state = { mixture_valid = 1, afr = 14.7, use_lambda = 0, rpm = 2400, tps = 18, logging = 1, page = 0, redline_warn = 0 }
+
+[[scenes]]
+id = "primary_lambda"
+element = "primary"
+state = { mixture_valid = 1, afr = 14.7, use_lambda = 1, rpm = 2400, tps = 18, logging = 1, page = 0, redline_warn = 0 }
+
+[[scenes]]
+id = "primary_invalid"
+element = "primary"
+state = { mixture_valid = 0, afr = 14.7, use_lambda = 0, rpm = 0, tps = 0, logging = 0, page = 0, redline_warn = 0 }
+
+[[scenes]]
+id = "aux_idle"
+element = "aux"
+state = { mixture_valid = 1, afr = 14.7, use_lambda = 0, rpm = 750, tps = 0, logging = 1, page = 0, redline_warn = 0 }
+
+[[scenes]]
+id = "aux_wot"
+element = "aux"
+state = { mixture_valid = 1, afr = 12.5, use_lambda = 0, rpm = 5500, tps = 100, logging = 1, page = 0, redline_warn = 0 }
+
+[[scenes]]
+id = "aux_redline"
+element = "aux"
+state = { mixture_valid = 1, afr = 12.4, use_lambda = 0, rpm = 6200, tps = 100, logging = 1, page = 0, redline_warn = 1 }
+
+[[scenes]]
+id = "chrome_page0"
+element = "chrome"
+state = { mixture_valid = 1, afr = 14.7, use_lambda = 0, rpm = 2400, tps = 18, logging = 1, page = 0, redline_warn = 0 }

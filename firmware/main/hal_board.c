@@ -1,18 +1,16 @@
-/* Device HAL backend — only TU allowlisted for device headers. */
+/* Device HAL backend — only TU allowlisted for device headers.
+ * Waveshare ESP32-S3-Touch-AMOLED-1.75: GPIO2 is SD MMC CLK — do not use as LED.
+ */
 #include "hal_board.h"
 
-#include "driver/gpio.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
-#ifndef GCU_LED_GPIO
-#define GCU_LED_GPIO 2
-#endif
-
 static void set_led(gcu_hal_t *self, int on) {
   (void)self;
-  gpio_set_level(GCU_LED_GPIO, on ? 1 : 0);
+  (void)on;
+  /* No free status LED on this SKU without fighting SD/peripherals. */
 }
 
 static void delay_ms(gcu_hal_t *self, int ms) {
@@ -33,8 +31,4 @@ static gcu_hal_t board_hal = {
     .now_ms = now_ms,
 };
 
-gcu_hal_t *gcu_make_board_hal(void) {
-  gpio_reset_pin(GCU_LED_GPIO);
-  gpio_set_direction(GCU_LED_GPIO, GPIO_MODE_OUTPUT);
-  return &board_hal;
-}
+gcu_hal_t *gcu_make_board_hal(void) { return &board_hal; }

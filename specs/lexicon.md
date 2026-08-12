@@ -9,6 +9,8 @@ Canonical terms for user-facing copy, specs, and implementer prose. Prefer indus
 |-----|------|
 | [spec.md](spec.md) | Product requirements |
 | [afr-face.md](afr-face.md) | AFR screen layout |
+| [pages.md](pages.md) | Multi-page nav, SETTINGS, ABOUT |
+| [afr-demo.md](afr-demo.md) | 30 s drive demo |
 | Issues #3 / #4 / #5 | Planning notes only (non-canonical until matching `specs/*.md` ships with impl) |
 
 **Schema for every term row:** one **Preferred** name; optional **Alias** (OK in operator copy); **Meaning**; **Avoid**. Do not list two Preferreds for one concept. Do not grow this into a glossary of every INI constant name.
@@ -118,7 +120,8 @@ UI structure only (layout detail: [afr-face.md](afr-face.md)). These names are *
 
 | Preferred | Alias | Meaning | Avoid |
 |-----------|-------|---------|--------|
-| **banner** | — | Top strip: **button labels** + **status indicators**. | — |
+| **banner** | — | Top strip: **button labels** + **status indicators** + **units control**. | — |
+| **units control** | — | Inverse **LAMBDA** / **AFR** label on the banner (right). Names the language a tap switches **to**. | Treating it as a channel name |
 | **dial** | — | Multi-segment LED gauge ring + aperture. | — |
 | **button labels** | — | On-screen **MODE** / **SEL** naming physical hard keys (not touch targets). | Treating labels as soft buttons |
 | **dial legend** | — | Scale marks **8 · 11 · 13 · 15 · 17 · 20** inside the aperture. | Putting legend on the LED segments |
@@ -126,10 +129,14 @@ UI structure only (layout detail: [afr-face.md](afr-face.md)). These names are *
 | **lambda readout** | — | λ companion **widget** to the right of the value (~75% size), same color. Shows **lambda**. | Calling the widget plain **lambda** in layout/spec prose |
 | **value legend** | — | **Removed.** Formerly `AIR/FUEL RATIO` under the value. | Restoring under-value legend text; use **lambda readout** instead |
 | **aux readouts** | — | Secondary numbers under the dial: **RPM** (left), **TPS** (right). | — |
-| **swipe indicator** | — | Page dots at the bottom. | — |
+| **swipe indicator** | dots | Page dots at the bottom. Tappable. | — |
 | **status indicators** | — | Non-text chrome (e.g. logging **LED**). | — |
+| **page** | — | Full-face product view: **AFR**, **SETTINGS**, **ABOUT**. | Calling every screen a “mode” |
+| **swipe** | — | Horizontal gesture to change page. | Bespoke swipe math when the toolkit already pages |
+| **drive demo** | — | 30 s looping drive script feeding mixture/RPM/TPS (host and metal). | Letting the demo own units |
+| **scene hold** | — | Frozen named state for esprec capture; demo clock paused until live. | — |
 
-Layout: logical face **448×368** landscape; native panel **368×448**; hard buttons + USB on the **top** edge.
+Layout: §2.2 development board **448×368** landscape (native **368×448**). §2.3 4.3B prototype **800×480** landscape (native RGB). Hard buttons + USB on the **top** edge of the 1.8″ board.
 
 ---
 
