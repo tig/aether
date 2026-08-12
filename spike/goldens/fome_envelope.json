@@ -1,0 +1,11 @@
+{
+  "note": "FOME proteus_f7 envelope goldens. CRC scope: request=payload only; response=flag||payload. Size BE excludes CRC.",
+  "signature": "rusEFI (FOME) .2026.06.03.proteus_f7.3416487136",
+  "frames": {
+    "s_request": "0001532060efc3",
+    "s_response": "0031007275734546492028464f4d4529202e323032362e30362e30332e70726f746575735f66372e33343136343837313336003c257c2f",
+    "o_request_off0_cnt20": "00054f00001400322fefd0",
+    "o_response_20b": "0015002000400000000000b8f0d8fd0000000000000000312b46e6",
+    "s_response_bad_crc": "0031007275734546492028464f4d4529202e323032362e30362e30332e70726f746575735f66372e33343136343837313336003c257cd0"
+  }
+}

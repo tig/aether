@@ -7,6 +7,7 @@
 | [specs/spec.md](specs/spec.md) | Mission, hardware, value requirements (HW + SW) |
 | [specs/afr-face.md](specs/afr-face.md) | AFR screen only |
 | [specs/lexicon.md](specs/lexicon.md) | Phrase book |
+| [specs/comms.md](specs/comms.md) | ECU + host comms (client, agent bridge, passthrough) |
 
 ![Aether AFR face host mockup](docs/images/afr-face-mockup.gif)
 
