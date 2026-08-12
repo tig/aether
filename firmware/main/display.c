@@ -38,7 +38,11 @@
 #define LCD_H_RES 800
 #define LCD_V_RES 480
 #define LCD_PCLK_HZ (16 * 1000 * 1000)
-#define LCD_BOUNCE_LINES 10
+/* 10 lines underruns when LVGL + Wi-Fi hit PSRAM; 20 is the Waveshare-class fix. */
+#define LCD_BOUNCE_LINES 20
+/* Strip height for LV_DISPLAY_RENDER_MODE_PARTIAL. Full-frame mode re-renders
+ * the whole 800×480 on every RPM tick and starves the bounce ISR. */
+#define LVGL_PARTIAL_LINES 40
 
 #define LCD_PIN_VSYNC GPIO_NUM_3
 #define LCD_PIN_HSYNC GPIO_NUM_46
@@ -65,7 +69,8 @@
 static const char *TAG = "display";
 
 static esp_lcd_panel_handle_t s_panel;
-static uint16_t *s_face;
+static uint16_t *s_face; /* RGB panel FB (esprec + fallback) */
+static uint8_t *s_lv_buf;
 static lv_display_t *s_lv_disp;
 static lv_indev_t *s_lv_touch;
 static esp_lcd_touch_handle_t s_touch;
@@ -271,31 +276,39 @@ static bool init_rgb_panel(void) {
 }
 
 bool display_init(void) {
-  const size_t face_bytes = (size_t)FACE_W * FACE_H * sizeof(uint16_t);
-
   if (!board_power_and_reset()) {
     ESP_LOGW(TAG, "expander sequence incomplete — trying panel anyway");
   }
-
-  s_face = (uint16_t *)heap_caps_malloc(
-      face_bytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-  if (!s_face) {
-    s_face = (uint16_t *)heap_caps_malloc(face_bytes, MALLOC_CAP_8BIT);
-  }
-  if (!s_face) {
-    ESP_LOGE(TAG, "face buffer alloc failed (need PSRAM for 800x480 RGB565)");
-    return false;
-  }
-  memset(s_face, 0, face_bytes);
 
   if (!init_rgb_panel()) {
     return false;
   }
 
+  /* Prefer the RGB driver's own FB so esprec sees what the panel shows
+   * and we do not keep a second 768 KB PSRAM shadow. */
+  void *fb0 = NULL;
+  if (esp_lcd_rgb_panel_get_frame_buffer(s_panel, 1, &fb0) == ESP_OK && fb0) {
+    s_face = (uint16_t *)fb0;
+  } else {
+    const size_t face_bytes = (size_t)FACE_W * FACE_H * sizeof(uint16_t);
+    s_face = (uint16_t *)heap_caps_malloc(
+        face_bytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    if (!s_face) {
+      s_face = (uint16_t *)heap_caps_malloc(face_bytes, MALLOC_CAP_8BIT);
+    }
+    if (!s_face) {
+      ESP_LOGE(TAG, "face buffer alloc failed (need PSRAM for 800x480 RGB565)");
+      return false;
+    }
+    memset(s_face, 0, face_bytes);
+    ESP_LOGW(TAG, "RGB panel FB unavailable — using shadow buffer");
+  }
+
   /* Re-assert backlight after panel clocks start. */
   (void)ch422g_write_out(0x1E);
 
-  ESP_LOGI(TAG, "RGB 4.3B ready face %dx%d", FACE_W, FACE_H);
+  ESP_LOGI(TAG, "RGB 4.3B ready face %dx%d fb=%p bounce=%d", FACE_W, FACE_H,
+           (void *)s_face, LCD_BOUNCE_LINES);
   return true;
 }
 
@@ -317,13 +330,17 @@ static uint32_t aether_lv_tick_ms(void) {
 
 static void aether_lv_flush(lv_display_t *disp, const lv_area_t *area,
                             uint8_t *px_map) {
-  (void)area;
-  display_present((const uint16_t *)px_map);
+  if (s_panel && px_map && area && area->x2 >= area->x1 &&
+      area->y2 >= area->y1) {
+    /* draw_bitmap x2/y2 are exclusive. px_map is one dirty strip. */
+    esp_lcd_panel_draw_bitmap(s_panel, area->x1, area->y1, area->x2 + 1,
+                              area->y2 + 1, px_map);
+  }
   lv_display_flush_ready(disp);
 }
 
 bool display_lvgl_init(void) {
-  if (!s_face || !s_panel) {
+  if (!s_panel) {
     ESP_LOGE(TAG, "display_lvgl_init: call display_init first");
     return false;
   }
@@ -340,14 +357,27 @@ bool display_lvgl_init(void) {
   lv_display_set_color_format(s_lv_disp, LV_COLOR_FORMAT_RGB565);
   lv_display_set_flush_cb(s_lv_disp, aether_lv_flush);
 
-  const size_t face_bytes = (size_t)FACE_W * FACE_H * sizeof(uint16_t);
-  lv_display_set_buffers(s_lv_disp, s_face, NULL, face_bytes,
-                         LV_DISPLAY_RENDER_MODE_FULL);
+  const size_t partial_bytes =
+      (size_t)FACE_W * LVGL_PARTIAL_LINES * sizeof(uint16_t);
+  s_lv_buf = (uint8_t *)heap_caps_aligned_alloc(
+      64, partial_bytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+  if (!s_lv_buf) {
+    s_lv_buf = (uint8_t *)heap_caps_malloc(partial_bytes, MALLOC_CAP_8BIT);
+  }
+  if (!s_lv_buf) {
+    ESP_LOGE(TAG, "LVGL partial buffer alloc failed (%u bytes)",
+             (unsigned)partial_bytes);
+    return false;
+  }
+  lv_display_set_buffers(s_lv_disp, s_lv_buf, NULL, partial_bytes,
+                         LV_DISPLAY_RENDER_MODE_PARTIAL);
 
-  ESP_LOGI(TAG, "LVGL display %dx%d RGB565 full-frame flush→RGB 4.3B", FACE_W,
-           FACE_H);
+  ESP_LOGI(TAG, "LVGL display %dx%d RGB565 partial %d lines → RGB 4.3B",
+           FACE_W, FACE_H, LVGL_PARTIAL_LINES);
   return true;
 }
+
+void display_yield(void) { vTaskDelay(0); }
 
 uint16_t *display_alloc_canvas(int w, int h) {
   if (w <= 0 || h <= 0) {
@@ -404,8 +434,7 @@ static void touch_sample(void) {
 }
 
 void display_touch_poll(void) {
-  /* Prefer sampling from the LVGL indev callback (one read per indev tick).
-   * Kept for callers that want a sample outside LVGL. */
+  /* Optional non-LVGL readers only. The indev callback samples GT911. */
   touch_sample();
 }
 
@@ -422,19 +451,13 @@ bool display_touch_get(int *x, int *y, int *pressed) {
   return s_touch_pr != 0;
 }
 
-/* Indev only reports the last sample from display_touch_poll / touch_sample.
- * Sampling here as well would double-read GT911 and clear the status reg. */
+/* Standard LVGL pointer port: sample the panel inside the indev read cb. */
 static void lv_touch_read_cb(lv_indev_t *indev, lv_indev_data_t *data) {
   (void)indev;
-  if (s_touch_pr) {
-    data->point.x = s_touch_x;
-    data->point.y = s_touch_y;
-    data->state = LV_INDEV_STATE_PRESSED;
-  } else {
-    data->point.x = s_touch_x;
-    data->point.y = s_touch_y;
-    data->state = LV_INDEV_STATE_RELEASED;
-  }
+  touch_sample();
+  data->point.x = s_touch_x;
+  data->point.y = s_touch_y;
+  data->state = s_touch_pr ? LV_INDEV_STATE_PRESSED : LV_INDEV_STATE_RELEASED;
 }
 
 bool display_touch_lvgl_init(void) {
@@ -448,11 +471,6 @@ bool display_touch_lvgl_init(void) {
   lv_indev_set_type(s_lv_touch, LV_INDEV_TYPE_POINTER);
   lv_indev_set_read_cb(s_lv_touch, lv_touch_read_cb);
   lv_indev_set_display(s_lv_touch, s_lv_disp);
-  /* Default scroll_limit is 10px — finger jitter on capacitive glass often
-   * exceeds that and steals CLICKED from buttons inside scrollables. 24 is
-   * still a short swipe start for tileview. */
-  lv_indev_set_scroll_limit(s_lv_touch, 24);
-  lv_indev_set_long_press_time(s_lv_touch, 400);
   ESP_LOGI(TAG, "LVGL touch indev registered (GT911 %s)",
            s_touch ? "ok" : "missing");
   return true;

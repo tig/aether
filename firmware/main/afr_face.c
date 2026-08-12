@@ -109,7 +109,7 @@ void afr_face_init(void) {
   lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, 0);
   lv_obj_clear_flag(scr, LV_OBJ_FLAG_SCROLLABLE);
 
-  /* LVGL tileview: swipe between pages is built-in and well tested. */
+  /* Stock LVGL tileview: one row of tiles, swipe is built-in. */
   s_tv = lv_tileview_create(scr);
   lv_obj_set_size(s_tv, FACE_W, FACE_H);
   lv_obj_set_style_bg_color(s_tv, lv_color_black(), 0);
@@ -126,15 +126,15 @@ void afr_face_init(void) {
   for (int i = 0; i < FACE_PAGE_COUNT; i++) {
     lv_obj_set_style_bg_color(s_tiles[i], lv_color_black(), 0);
     lv_obj_set_style_bg_opa(s_tiles[i], LV_OPA_COVER, 0);
-    lv_obj_clear_flag(s_tiles[i], LV_OBJ_FLAG_SCROLLABLE);
+    /* Tiles must not scroll themselves — the tileview does. */
+    lv_obj_remove_flag(s_tiles[i], LV_OBJ_FLAG_SCROLLABLE);
   }
 
-  /* AFR content on tile 0. Interactive chrome (dots, units) is parented to
-   * the screen — never a child of the scrollable tileview — so LVGL's own
-   * button hit-testing and tileview swipe do not fight each other. */
   face_dial_init(s_tiles[FACE_PAGE_AFR]);
   face_primary_init(s_tiles[FACE_PAGE_AFR]);
   face_aux_init(s_tiles[FACE_PAGE_AFR]);
+  /* Dots / units live on the screen, not the tileview. A FLOATING child of
+   * the scroller still starts a swipe when the finger moves a few pixels. */
   face_banner_init(s_tiles[FACE_PAGE_AFR], scr);
   face_banner_set_units_cb(on_units_toggle);
   face_chrome_init(s_tiles[FACE_PAGE_AFR], scr);
@@ -174,8 +174,12 @@ void afr_face_update(const afr_face_state_t *st) {
   s_st.redline_warn = st->redline_warn;
   s_st.page = s_page;
 
-  /* Always advance AFR pipeline (multitasking while other tiles are front). */
-  face_dial_update(&s_st);
+  /* Always advance AFR pipeline (multitasking while other tiles are front).
+   * Skip the software bezel while the tileview is scrolling — a 800×324
+   * raster mid-swipe underruns the RGB bounce buffer. */
+  if (!s_tv || !lv_obj_is_scrolling(s_tv)) {
+    face_dial_update(&s_st);
+  }
   face_primary_update(&s_st);
   face_aux_update(&s_st);
   face_banner_update(&s_st);
@@ -185,9 +189,6 @@ void afr_face_update(const afr_face_state_t *st) {
 }
 
 void afr_face_handler(void) {
-  /* One GT911 sample per frame, then LVGL indev consumes the cache.
-   * (Do not also read inside the indev cb — that double-reads the chip.) */
-  display_touch_poll();
   lv_timer_handler();
 }
 
@@ -197,15 +198,16 @@ void afr_face_live(void) { s_scene_hold = 0; }
 
 static void apply_state(const face_state_t *st) {
   s_st = *st;
-  s_st.page = s_page;
   s_scene_hold = 1;
-  afr_face_set_page(FACE_PAGE_AFR);
+  afr_face_set_page(st->page);
+  s_st.page = s_page;
   face_dial_force_dirty();
   face_dial_update(&s_st);
   face_primary_update(&s_st);
   face_aux_update(&s_st);
   face_banner_update(&s_st);
   face_chrome_update(&s_st);
+  face_about_update(&s_st);
 }
 
 int afr_face_apply_scene(const char *id) {
@@ -258,6 +260,11 @@ int afr_face_apply_scene(const char *id) {
     st.rpm = 6200;
     st.tps = 100;
     st.redline_warn = 1;
+  } else if (strcmp(id, "page_about") == 0) {
+    st.logging = 1;
+    st.rpm = 2400;
+    st.tps = 18;
+    st.page = FACE_PAGE_ABOUT;
   } else {
     return -1;
   }

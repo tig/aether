@@ -189,3 +189,9 @@ state = { mixture_valid = 1, afr = 12.4, use_lambda = 0, rpm = 6200, tps = 100, 
 id = "chrome_page0"
 element = "chrome"
 state = { mixture_valid = 1, afr = 14.7, use_lambda = 0, rpm = 2400, tps = 18, logging = 1, page = 0, redline_warn = 0 }
+
+[[scenes]]
+id = "page_about"
+element = "pages"
+note = "ABOUT page: two-column identity + live sensors + connectivity"
+state = { mixture_valid = 1, afr = 14.7, use_lambda = 0, rpm = 2400, tps = 18, logging = 1, page = 2, redline_warn = 0 }

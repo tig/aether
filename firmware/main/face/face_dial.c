@@ -190,6 +190,9 @@ static void paint_leds(int lit, int valid) {
   float gap = 0.035f;
 
   for (int y = 0; y < s_h; y++) {
+    if ((y & 31) == 0) {
+      display_yield();
+    }
     for (int x = 0; x < s_w; x++) {
       float px = (float)x, py = (float)y;
 
@@ -279,8 +282,10 @@ void face_dial_update(const face_state_t *st) {
   }
   int lit = st->mixture_valid ? afr_map_lit_count(st->afr) : 0;
   int marks_dirty = (st->use_lambda != s_last_lambda);
-  if (lit == s_last_lit && st->mixture_valid == s_last_valid &&
-      fabsf(st->afr - s_last_afr) < 0.02f && !marks_dirty) {
+  /* Segment colors depend on lit count, not the exact AFR. Repainting the
+   * 800×324 software bezel on every 0.02 AFR tick starves the RGB bounce
+   * buffer (PSRAM + Wi-Fi) and the chip resets. */
+  if (lit == s_last_lit && st->mixture_valid == s_last_valid && !marks_dirty) {
     return;
   }
   if (marks_dirty) {

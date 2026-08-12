@@ -49,8 +49,6 @@ void face_chrome_init(lv_obj_t *afr_parent, lv_obj_t *chrome_parent) {
     /* Fat transparent button — LVGL hit-tests this reliably. */
     s_dots[i] = lv_button_create(chrome_parent);
     lv_obj_remove_flag(s_dots[i], LV_OBJ_FLAG_SCROLL_ON_FOCUS);
-    lv_obj_remove_flag(s_dots[i], LV_OBJ_FLAG_GESTURE_BUBBLE);
-    lv_obj_remove_flag(s_dots[i], LV_OBJ_FLAG_EVENT_BUBBLE);
     lv_obj_set_size(s_dots[i], DOT_HIT, DOT_HIT);
     lv_obj_set_style_bg_opa(s_dots[i], LV_OPA_TRANSP, 0);
     lv_obj_set_style_bg_opa(s_dots[i], LV_OPA_20, LV_STATE_PRESSED);
