@@ -311,12 +311,12 @@ void display_present(const uint16_t *face_rgb565) {
 
 /* ---- LVGL display driver ------------------------------------------------ */
 
-static uint32_t lv_tick_get_cb(void) {
+static uint32_t aether_lv_tick_ms(void) {
   return (uint32_t)(esp_timer_get_time() / 1000ULL);
 }
 
-static void lv_flush_cb(lv_display_t *disp, const lv_area_t *area,
-                        uint8_t *px_map) {
+static void aether_lv_flush(lv_display_t *disp, const lv_area_t *area,
+                            uint8_t *px_map) {
   (void)area;
   display_present((const uint16_t *)px_map);
   lv_display_flush_ready(disp);
@@ -329,7 +329,7 @@ bool display_lvgl_init(void) {
   }
 
   lv_init();
-  lv_tick_set_cb(lv_tick_get_cb);
+  lv_tick_set_cb(aether_lv_tick_ms);
 
   s_lv_disp = lv_display_create(FACE_W, FACE_H);
   if (!s_lv_disp) {
@@ -338,7 +338,7 @@ bool display_lvgl_init(void) {
   }
 
   lv_display_set_color_format(s_lv_disp, LV_COLOR_FORMAT_RGB565);
-  lv_display_set_flush_cb(s_lv_disp, lv_flush_cb);
+  lv_display_set_flush_cb(s_lv_disp, aether_lv_flush);
 
   const size_t face_bytes = (size_t)FACE_W * FACE_H * sizeof(uint16_t);
   lv_display_set_buffers(s_lv_disp, s_face, NULL, face_bytes,
