@@ -102,3 +102,19 @@ fw_name=AETHER fw_version=0.0.1
 Plate `main.c` shows the pattern: print once at boot **and** respond when the host knocks. A boot-print-only app is invisible to inspect as soon as the banner is gone.
 
 Escape hatch (`repl` / `reboot`) is a product requirement for reclaim without hard reset when possible.
+
+## Cursor Cloud specific instructions
+
+Scope of the cloud dev environment is the **host path** only: C host gate, the AFR mockup, the software sim bench, and `silico gate`. The **metal / ESP-IDF** path (`firmware/`, QEMU twin, `silico deploy`) is not provisioned. There is no `idf.py`, no board, and no serial device, so device flash and QEMU steps do not run here.
+
+Python lives in a repo-root virtualenv at `.venv` (gitignored). The VM ships `python3` but no `python`, so run tools through the venv: `.venv/bin/python`, `.venv/bin/pytest`, `.venv/bin/silico`. The README/`install/` docs write `python`; substitute `.venv/bin/python`. The venv is recreated by the startup update script, so a plain `pip install` outside it does not stick.
+
+`silico` (and `bedside`) are installed editable into `.venv` from a clone at `~/silico` (there is no writable sibling `../silico` here, `/` is read-only). `silico gate` and `silico product-path` work from the repo root as-is and do **not** need the `bedside.toml` sibling paths in this layout.
+
+Host commands (already documented in `README.md` "Host gate" / "Software bench" and `install/README.md`), run from the repo root:
+
+- C gate: `cmake -S host -B build/host` then `cmake --build build/host --target host_test` (3 ctest cases). `silico gate` runs include-hygiene plus this same build.
+- AFR mockup: `.venv/bin/python -m mockup` (writes `mockup/out/`), tests `.venv/bin/pytest mockup/tests -q`.
+- Sim bench: `.venv/bin/pytest sim/tests -q` and `.venv/bin/python -m sim.orch all --out sim/out`. The `test_c_ecu_tcp_bench` case auto-builds/uses `build/host/ecu_tcp_bench`, so keep the C build configured.
+
+Visual gauge check: `python -m mockup.capture` needs ImageMagick `magick`, which is **not** installed, and its `--html` path only knows Windows browser locations. To eyeball the face, render `mockup/gauge.html` with the VM's headless Chrome: `google-chrome-stable --headless=new --disable-gpu --no-sandbox --screenshot=out.png --window-size=900,700 file:///workspace/mockup/gauge.html`. The page runs a ~30s scripted drive demo, so a single screenshot at load time shows the idle `AFR --.-` frame, use a video/live view to see it animate.
