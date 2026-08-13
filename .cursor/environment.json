@@ -1,0 +1,5 @@
+{
+  "name": "Aether host gate",
+  "install": "bash /agent/repos/aether/.cursor/install.sh",
+  "repositoryDependencies": ["github.com/tig/silico"]
+}
